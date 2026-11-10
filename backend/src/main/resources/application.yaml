@@ -3,6 +3,9 @@ spring:
     name: vitta-backend
   config:
     import: optional:file:.env[.properties]
+  profiles:
+    # Lets SPRING_PROFILES_ACTIVE work from backend/.env too (not only as a real env var).
+    active: ${SPRING_PROFILES_ACTIVE:}
   datasource:
     url: ${DB_URL}
     username: ${DB_USERNAME}
@@ -11,3 +14,7 @@ spring:
     hibernate:
       ddl-auto: validate
     open-in-view: false
+
+app:
+  cors:
+    allowed-origin: ${FRONTEND_URL:http://localhost:3000}

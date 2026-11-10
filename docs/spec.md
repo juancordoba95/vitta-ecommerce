@@ -55,12 +55,64 @@ Customer checkout ──> WhatsApp link with the pre-filled order (built on the 
 
 ## Domain model
 
-TBD in Mission 1.
+Schema owned by Flyway (`backend/src/main/resources/db/migration`), validated by Hibernate.
+
+```
+categories 1 ──< products 1 ──< product_variants
+```
+
+| Table | Columns | Constraints |
+| --- | --- | --- |
+| `categories` | `id`, `name` (100), `slug` (120) | `slug` unique |
+| `products` | `id`, `name` (150), `slug` (170), `description` (2000, nullable), `price DECIMAL(10,2)`, `category_id`, `image_url` (500, nullable), `active` (default `true`), `created_at`, `updated_at` | `slug` unique; FK to `categories`; `price >= 0` |
+| `product_variants` | `id`, `product_id`, `size` (10), `stock` (default 0) | unique `(product_id, size)`; FK to `products` (on delete cascade); `stock >= 0` |
+
+- A product belongs to exactly one category and has one variant per size (S, M, L for now). Stock lives on the variant.
+- Inactive products (`active = false`) stay in the database but are hidden from the public catalog.
+- Prices are in ARS.
+- **Dev data**: with the `dev` profile, Flyway also loads `db/dev-data` (a repeatable, idempotent seed with 3 categories and 8 products, one of them inactive). It never runs in other environments or in tests.
 
 ## API
 
-TBD in Mission 1.
+Base path `/api`. Public, read-only, JSON. Slugs must match `^[a-z0-9]+(-[a-z0-9]+)*$`.
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/api/categories` | All categories, sorted by name. |
+| `GET` | `/api/products?category={slug}` | Active products sorted by name; `category` is optional. |
+| `GET` | `/api/products/{slug}` | Active product detail with category and variants. |
+
+Examples:
+
+```jsonc
+// GET /api/categories
+[{ "id": 1, "name": "Bodies", "slug": "bodies" }]
+
+// GET /api/products?category=conjuntos
+[{ "id": 1, "name": "Conjunto Encaje Floral", "slug": "conjunto-encaje-floral",
+   "price": 42900.00, "imageUrl": "https://placehold.co/600x800?text=...", "categorySlug": "conjuntos" }]
+
+// GET /api/products/conjunto-encaje-floral
+{ "id": 1, "name": "Conjunto Encaje Floral", "slug": "conjunto-encaje-floral",
+  "description": "...", "price": 42900.00, "imageUrl": "https://placehold.co/600x800?text=...",
+  "category": { "id": 1, "name": "Conjuntos", "slug": "conjuntos" },
+  "variants": [{ "size": "S", "stock": 4 }, { "size": "M", "stock": 7 }, { "size": "L", "stock": 3 }] }
+```
+
+**Errors** use RFC 9457 Problem Details (`application/problem+json`):
+
+```json
+{ "type": "about:blank", "title": "Resource not found", "status": 404,
+  "detail": "Product 'foo' not found", "instance": "/api/products/foo" }
+```
+
+- `404`: unknown or inactive product; unknown `category` filter.
+- `400`: invalid slug in the path or the `category` parameter.
+- `500`: unexpected error (generic message; details are only logged).
+
+**CORS**: `/api/**` allows `GET` from the origin in `FRONTEND_URL` (default `http://localhost:3000`).
 
 ## Changelog
 
+- **2026-11-10**: Mission 1.1: catalog backend (schema, dev seed data, read-only catalog API).
 - **2026-11-10**: Mission 0 completed (monorepo setup, backend and frontend scaffolding, CLAUDE.md, CI with Testcontainers, spec and PR template).
