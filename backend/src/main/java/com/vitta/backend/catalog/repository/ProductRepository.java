@@ -15,7 +15,7 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
 	@EntityGraph(attributePaths = "category")
 	List<Product> findAllByActiveTrueAndCategorySlugOrderByNameAsc(String categorySlug);
 
-	@EntityGraph(attributePaths = { "category", "variants" })
+	@EntityGraph(attributePaths = { "category", "variants", "images" })
 	Optional<Product> findBySlugAndActiveTrue(String slug);
 
 }

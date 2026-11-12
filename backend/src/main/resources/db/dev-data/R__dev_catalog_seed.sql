@@ -74,3 +74,18 @@ VALUES ((SELECT id FROM products WHERE slug = 'conjunto-encaje-floral'), 'S', 4)
        ((SELECT id FROM products WHERE slug = 'bata-de-saten'), 'M', 3),
        ((SELECT id FROM products WHERE slug = 'bata-de-saten'), 'L', 2) AS new
 ON DUPLICATE KEY UPDATE stock = new.stock;
+
+-- Gallery: the cover (position 0) plus back and detail shots for every seeded product.
+INSERT INTO product_images (product_id, url, position)
+SELECT *
+FROM (SELECT p.id AS product_id, CONCAT(p.image_url, shot.suffix) AS url, shot.position AS position
+      FROM products p
+               CROSS JOIN (SELECT 0 AS position, '' AS suffix
+                           UNION ALL
+                           SELECT 1, '+%28espalda%29'
+                           UNION ALL
+                           SELECT 2, '+%28detalle%29') shot
+      WHERE p.slug IN ('conjunto-encaje-floral', 'conjunto-tul-bordado', 'conjunto-saten-rosa',
+                       'body-encaje-negro', 'body-tul-bordo', 'body-lycra-basico',
+                       'portaligas-de-encaje', 'bata-de-saten')) AS new
+ON DUPLICATE KEY UPDATE url = new.url;

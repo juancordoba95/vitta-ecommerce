@@ -55,9 +55,12 @@ class CatalogApiIntegrationTest {
 
 		Product encaje = new Product("Conjunto Encaje Floral", "conjunto-encaje-floral", "Encaje negro",
 				new BigDecimal("42900.00"), conjuntos, "https://placehold.co/600x800", true);
+		// Inserted out of logical order: the API must return S, M, L.
+		encaje.addVariant("L", 3);
 		encaje.addVariant("S", 4);
 		encaje.addVariant("M", 0);
-		encaje.addVariant("L", 3);
+		encaje.addImage("https://placehold.co/600x800?text=2", 1);
+		encaje.addImage("https://placehold.co/600x800?text=1", 0);
 		productRepository.save(encaje);
 		productRepository.save(new Product("Body Encaje Negro", "body-encaje-negro", "Body de encaje",
 				new BigDecimal("45900.00"), bodies, "https://placehold.co/600x800", true));
@@ -107,7 +110,7 @@ class CatalogApiIntegrationTest {
 	}
 
 	@Test
-	void returnsProductDetailWithVariants() throws Exception {
+	void returnsProductDetailWithSortedVariantsAndImages() throws Exception {
 		mockMvc.perform(get("/api/products/conjunto-encaje-floral"))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.name").value("Conjunto Encaje Floral"))
@@ -116,7 +119,16 @@ class CatalogApiIntegrationTest {
 			.andExpect(jsonPath("$.variants", hasSize(3)))
 			.andExpect(jsonPath("$.variants[0].size").value("S"))
 			.andExpect(jsonPath("$.variants[0].stock").value(4))
-			.andExpect(jsonPath("$.variants[1].stock").value(0));
+			.andExpect(jsonPath("$.variants[0].available").value(true))
+			.andExpect(jsonPath("$.variants[0].id").isNumber())
+			.andExpect(jsonPath("$.variants[1].size").value("M"))
+			.andExpect(jsonPath("$.variants[1].stock").value(0))
+			.andExpect(jsonPath("$.variants[1].available").value(false))
+			.andExpect(jsonPath("$.variants[2].size").value("L"))
+			.andExpect(jsonPath("$.images", hasSize(2)))
+			.andExpect(jsonPath("$.images[0].url").value("https://placehold.co/600x800?text=1"))
+			.andExpect(jsonPath("$.images[0].position").value(0))
+			.andExpect(jsonPath("$.images[1].position").value(1));
 	}
 
 	@Test
