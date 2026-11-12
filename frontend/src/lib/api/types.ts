@@ -53,3 +53,39 @@ export type ProblemDetail = {
   detail?: string;
   instance?: string;
 };
+
+export type CartValidationRequest = {
+  items: { variantId: number; quantity: number }[];
+};
+
+/**
+ * - `OK`: stock ≥ quantity.
+ * - `INSUFFICIENT_STOCK`: 0 < stock < quantity.
+ * - `OUT_OF_STOCK`: stock = 0.
+ * - `NOT_FOUND`: unknown variant or inactive product.
+ */
+export type CartItemStatus =
+  | "OK"
+  | "INSUFFICIENT_STOCK"
+  | "OUT_OF_STOCK"
+  | "NOT_FOUND";
+
+export type ValidatedCartItem = {
+  variantId: number;
+  /** Product fields, `unitPrice` and `availableStock` are null when `NOT_FOUND`. */
+  productSlug: string | null;
+  productName: string | null;
+  size: string | null;
+  /** Current price in ARS. */
+  unitPrice: number | null;
+  quantity: number;
+  availableStock: number | null;
+  status: CartItemStatus;
+};
+
+export type CartValidationResponse = {
+  /** One per requested item, in request order. */
+  items: ValidatedCartItem[];
+  /** Σ unitPrice × quantity over `OK` items only, in ARS. */
+  total: number;
+};

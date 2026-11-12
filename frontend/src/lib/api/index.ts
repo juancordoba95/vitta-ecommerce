@@ -1,4 +1,5 @@
-export { ApiError, apiGet } from "./client";
+export { ApiError, apiGet, apiPost } from "./client";
+export { validateCart } from "./cart";
 export {
   CATALOG_CACHE_TAG,
   getCategories,
@@ -7,10 +8,14 @@ export {
   isValidSlug,
 } from "./catalog";
 export type {
+  CartItemStatus,
+  CartValidationRequest,
+  CartValidationResponse,
   Category,
   ProblemDetail,
   ProductDetail,
   ProductImage,
   ProductSummary,
   ProductVariant,
+  ValidatedCartItem,
 } from "./types";

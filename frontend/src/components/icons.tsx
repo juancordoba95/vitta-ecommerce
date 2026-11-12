@@ -31,3 +31,20 @@ export function HeartIcon(props: IconProps) {
     </svg>
   );
 }
+
+export function BagIcon(props: IconProps) {
+  return (
+    <svg {...baseProps} {...props}>
+      <path d="M5 8h14l-1 12H6L5 8Z" />
+      <path d="M9 10V7a3 3 0 0 1 6 0v3" />
+    </svg>
+  );
+}
+
+export function CloseIcon(props: IconProps) {
+  return (
+    <svg {...baseProps} {...props}>
+      <path d="M6 6l12 12M18 6 6 18" />
+    </svg>
+  );
+}

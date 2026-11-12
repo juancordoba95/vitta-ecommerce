@@ -177,6 +177,8 @@ Response, always `200` for a valid body even if some items have problems:
 | `/` | Hero + catalog grid; `?category={slug}` filters by category. Each card links to the product detail. |
 | `/productos/{slug}` | Product detail (consumes `GET /api/products/{slug}`). |
 
+The cart is not a route: it is a drawer available on every page from the header (see [Cart](#cart)).
+
 ### Product detail: `/productos/{slug}`
 
 - **Layout** (mobile-first): gallery on top and info below; two columns from `md` up. A "Volver al catálogo" link sits above the content and the category name links to `/?category={slug}`.
@@ -197,10 +199,44 @@ Response, always `200` for a valid body even if some items have problems:
 | No size has stock | Size picker and button replaced by "Sin stock por ahora" | — |
 
 - The "últimas unidades" threshold is `LOW_STOCK_THRESHOLD = 3` (`frontend/src/lib/stock.ts`).
-- No size is preselected and "Agregar al carrito" stays disabled until the customer picks one. Exception: if exactly one size has stock, it starts selected. Cart logic arrives in Mission 2.3; the click handler already has the selected variant `id` to send.
+- No size is preselected and "Agregar al carrito" stays disabled until the customer picks one. Exception: if exactly one size has stock, it starts selected. The selected variant `id` is what the cart stores.
 - Stock shown on the page can be a few minutes stale (cached); the cart validation endpoint is the source of truth before checkout.
+- "Agregar al carrito" adds one unit of the selected size and opens the cart drawer. The button is disabled when no size is selected, when the selected size has no stock, or when the cart already holds all its known stock; in that last case it shows "Ya agregaste todas las unidades disponibles" (checked after mounting, since the cart lives in the browser). If the cart already has 50 distinct items, nothing is added and an inline message explains why.
+
+### Cart
+
+The cart lives only in the browser (see `POST /api/cart/validate`). Code: `frontend/src/lib/cart/` (pure logic in `cart-items.ts`, store in `cart-store.ts`, server revalidation in `use-cart-validation.ts`) and `frontend/src/components/cart/`.
+
+- **Store**: [zustand](https://github.com/pmndrs/zustand) with the `persist` middleware. Only `items` are saved, in `localStorage` under the key `vitta-cart` (version `1`); the drawer's open state is not persisted. Stored items are sanitized on load (malformed entries, duplicates and anything beyond the limits are dropped).
+- **Item**: `variantId`, `productSlug`, `productName`, `size`, `imageUrl`, `unitPrice` (snapshot in ARS, for display only), `quantity` and `stock` (last known stock of the variant; `0` means not available).
+- **Limits** (same as the validation endpoint):
+  - At most **50 distinct items** (`MAX_CART_ITEMS`). Adding a new variant to a full cart is rejected.
+  - **The store enforces the limits itself**, whatever calls it: `addItem` rejects variants without stock (`out-of-stock`), additions once the cart holds the known stock (`stock-limit`), a full cart (`cart-full`) and malformed input such as a quantity that is not a positive integer (`invalid`). A partial fit is capped at the stock. Rejections leave the cart untouched.
+  - Adding a variant already in the cart **sums the quantity** instead of duplicating it.
+  - `quantity` is always between **1** and the **known stock** (and never above `999`). The `−` button stops at 1 (removing is a separate "Quitar" action) and `+` stops at the stock.
+- **Hydration**: the persisted cart is only read on the client. The header badge and the drawer render it only after mounting (`useHydrated`), so the server HTML and the first client render always match.
+- **Header**: a bag icon on the right opens the drawer; its badge shows the total **units** (sum of quantities), `99+` above 99, and is hidden when the cart is empty.
+- **Drawer**: a modal `<dialog>` (focus trap, `Escape`, click on the backdrop closes it, page scroll locked). Full width on mobile, a right-hand panel (`max-w-md`) from `sm` up. Each line shows image, name (links to the detail), size, unit price, `−`/`+` and "Quitar". Empty state: "Tu carrito está vacío" with a link to the catalog. "Finalizar pedido" is visible but disabled until the WhatsApp checkout (Mission 3).
+
+#### Revalidation
+
+Every time the drawer opens, and again whenever a variant or quantity changes while it is open (debounced 300 ms; older requests are aborted), the cart is sent to `POST /api/cart/validate` and the response is applied to the stored items:
+
+| Status | Effect on the item | UI |
+| --- | --- | --- |
+| `OK` | Price and known stock updated from the server. | Normal line. |
+| `INSUFFICIENT_STOCK` | Quantity lowered to `availableStock`; price and stock updated. | "Quedan N unidades: ajustamos la cantidad." The lowered cart is revalidated, so the total includes it. |
+| `OUT_OF_STOCK` | Kept, marked unavailable (`stock = 0`); price updated. | Greyed out, "Sin stock", price struck through, "Quitar del carrito" button; excluded from the total. |
+| `NOT_FOUND` | Kept, marked unavailable (`stock = 0`). | Same, with "Ya no está disponible". |
+
+- An unavailable item is sent again on the next validation, so it becomes available again if it is restocked.
+- **Total**: the server's `total`, formatted in ARS (`formatPrice`, `Intl.NumberFormat("es-AR")`). While a validation is pending it shows "Calculando…".
+- **API failure**: the cart is still shown with its last known data, plus a notice and a "Reintentar" button; the total is labelled "Total estimado" and computed locally from the snapshot prices of available items.
+- The server never stores the cart and validation does not reserve stock: Vitta confirms availability on WhatsApp.
 
 ## Changelog
+
+- **2026-11-12**: Mission 2.3: client-side cart (zustand + localStorage), header badge and cart drawer revalidated against `POST /api/cart/validate`; "Agregar al carrito" wired on the product detail.
 
 - **2026-11-11**: Mission 2.2: product detail page (`/productos/{slug}`) with gallery, size picker with stock states, branded 404 and Open Graph metadata; catalog cards link to it.
 
