@@ -44,3 +44,8 @@ body {
   outline: 1px solid var(--color-charcoal);
   outline-offset: 3px;
 }
+
+/* Lock page scroll while a modal dialog (e.g. the cart drawer) is open. */
+html:has(dialog:modal) {
+  overflow: hidden;
+}
