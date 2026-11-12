@@ -87,7 +87,7 @@ export function buildOrderMessage(order: Order): string {
   const lines: string[] = [
     "¡Hola Vitta! Quiero hacer este pedido:",
     "",
-    `Pedido: ${order.code}`,
+    `Código de pedido: ${order.code}`,
     "",
     ...order.lines.map(
       (line) =>

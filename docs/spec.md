@@ -271,7 +271,7 @@ Code: `frontend/src/lib/checkout/` (pure logic: message and URL in `whatsapp.ts`
    - **API failure**: an error asks to try again; nothing is sent.
    - **Cart edited while validating**: asks to review and confirm again.
    - **All OK**: a short order code is generated, the message and the `wa.me` URL are built from the server prices, the order is saved in `sessionStorage` (`vitta-last-order`) and the page moves to `/checkout/confirmacion`.
-5. **Confirmation** (`/checkout/confirmacion`): the first time it shows a new order it **empties the cart** and **opens WhatsApp** with `window.location.assign(url)`. It then shows "¡Pedido listo!", the order code, an "Abrir WhatsApp de nuevo" link (new tab) in case WhatsApp did not open, and "Volver al catálogo". The order is marked as handled, so going back to this screen or reloading it never empties the cart or opens WhatsApp again. Without a stored order it shows "No encontramos un pedido reciente".
+5. **Confirmation** (`/checkout/confirmacion`): the first time it shows a new order it **empties the cart** and **opens WhatsApp** with `window.location.assign(url)`. It then shows "¡Pedido listo!", the order code with "Guardalo para consultar por tu pedido por WhatsApp.", an "Abrir WhatsApp de nuevo" link (new tab) in case WhatsApp did not open, and "Volver al catálogo". The order is marked as handled, so going back to this screen or reloading it never empties the cart or opens WhatsApp again. Without a stored order it shows "No encontramos un pedido reciente".
 
 **Why WhatsApp opens from the confirmation screen**: mobile browsers block `window.open()` that is not directly inside a user gesture, and confirming has to `await` the revalidation first. A same-tab navigation is never treated as a popup. On phones the `wa.me` link hands off to the WhatsApp app; on desktop the tab goes to WhatsApp Web, and the browser's back button returns to the "¡Pedido listo!" screen.
 
@@ -286,7 +286,7 @@ Code: `frontend/src/lib/checkout/` (pure logic: message and URL in `whatsapp.ts`
 ```text
 ¡Hola Vitta! Quiero hacer este pedido:
 
-Pedido: VT-4F7K
+Código de pedido: VT-4F7K
 
 • Conjunto Encaje Floral · Talle S · x1 · $ 42.900
 • Conjunto Tul Bordado · Talle S · x2 · $ 79.800

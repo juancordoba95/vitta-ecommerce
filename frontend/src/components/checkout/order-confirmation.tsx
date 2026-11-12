@@ -60,9 +60,12 @@ export function OrderConfirmation() {
       <p className="rounded-soft bg-vitta-gradient px-6 py-3 text-2xl tracking-label tabular-nums">
         {order.code}
       </p>
-      <p className="text-sm leading-relaxed text-charcoal/80">
+      <p className="text-xs text-charcoal/70">
+        Guardalo para consultar por tu pedido por WhatsApp.
+      </p>
+      <p className="mt-2 text-sm leading-relaxed text-charcoal/80">
         Abrimos WhatsApp con tu pedido. Enviá el mensaje y te confirmamos stock, pago y
-        entrega por ahí. Si lo necesitás, mencioná este código.
+        entrega por ahí.
       </p>
       <div className="mt-4 flex w-full flex-col items-center gap-4 sm:max-w-xs">
         <a
