@@ -7,8 +7,13 @@ import { SizeSelector } from "./size-selector";
 
 /** Size selection, stock hint and the "Agregar al carrito" button. */
 export function ProductPurchase({ variants }: { variants: ProductVariant[] }) {
-  const [selected, setSelected] = useState<ProductVariant | null>(null);
-  const hasStock = variants.some((variant) => variant.available);
+  const availableVariants = variants.filter((variant) => variant.available);
+  const hasStock = availableVariants.length > 0;
+  // No size is preselected: the customer must pick one explicitly. Exception: if
+  // only one size has stock, there is nothing to choose, so it starts selected.
+  const [selected, setSelected] = useState<ProductVariant | null>(() =>
+    availableVariants.length === 1 ? availableVariants[0] : null,
+  );
 
   function handleAddToCart() {
     if (selected === null) return;

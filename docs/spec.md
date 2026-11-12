@@ -197,7 +197,7 @@ Response, always `200` for a valid body even if some items have problems:
 | No size has stock | Size picker and button replaced by "Sin stock por ahora" | — |
 
 - The "últimas unidades" threshold is `LOW_STOCK_THRESHOLD = 3` (`frontend/src/lib/stock.ts`).
-- "Agregar al carrito" stays disabled until a size is selected. Cart logic arrives in Mission 2.3; the click handler already has the selected variant `id` to send.
+- No size is preselected and "Agregar al carrito" stays disabled until the customer picks one. Exception: if exactly one size has stock, it starts selected. Cart logic arrives in Mission 2.3; the click handler already has the selected variant `id` to send.
 - Stock shown on the page can be a few minutes stale (cached); the cart validation endpoint is the source of truth before checkout.
 
 ## Changelog
