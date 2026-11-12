@@ -168,7 +168,41 @@ Response, always `200` for a valid body even if some items have problems:
 
 **CORS**: `/api/**` allows `GET` and `POST` from the origin in `FRONTEND_URL` (default `http://localhost:3000`).
 
+## Frontend
+
+### Routes
+
+| Route | Description |
+| --- | --- |
+| `/` | Hero + catalog grid; `?category={slug}` filters by category. Each card links to the product detail. |
+| `/productos/{slug}` | Product detail (consumes `GET /api/products/{slug}`). |
+
+### Product detail: `/productos/{slug}`
+
+- **Layout** (mobile-first): gallery on top and info below; two columns from `md` up. A "Volver al catálogo" link sits above the content and the category name links to `/?category={slug}`.
+- **Gallery**: large main image plus clickable thumbnails from `images` (sorted by `position`); falls back to `imageUrl`, then to a "Vitta" placeholder. Thumbnails only show with 2+ images.
+- **Price** in ARS via `Intl.NumberFormat("es-AR")` (`formatPrice`).
+- **Rendering**: the static shell (header, back link, skeleton) is prerendered; the product streams in because `params` is runtime data under Cache Components. API data is cached with `cacheLife("minutes")` and the `catalog` tag.
+- **Not found**: an unknown or inactive product (API `404`) or a slug that fails the slug pattern calls `notFound()` and renders the branded `not-found.tsx` with a link back to the catalog. Because the check runs after streaming starts, the HTTP status stays `200`; Next.js adds `noindex`.
+- **API down**: a friendly "No pudimos cargar este producto" message instead of an error page.
+- **Metadata**: `generateMetadata` sets the title (`{name} · Vitta by Marie`), the description (truncated to 160 chars) and Open Graph / Twitter tags with the cover image. Link-preview bots (WhatsApp, Instagram, Facebook) get the tags in `<head>`: Next.js blocks on metadata for HTML-limited bots.
+
+#### Stock states in the UI
+
+| Variant state | Size button | After selecting it |
+| --- | --- | --- |
+| `stock = 0` (`available: false`) | Disabled and struck through; not selectable | — |
+| `1 ≤ stock ≤ 3` | Enabled | Shows "Últimas unidades" |
+| `stock > 3` | Enabled | No hint |
+| No size has stock | Size picker and button replaced by "Sin stock por ahora" | — |
+
+- The "últimas unidades" threshold is `LOW_STOCK_THRESHOLD = 3` (`frontend/src/lib/stock.ts`).
+- "Agregar al carrito" stays disabled until a size is selected. Cart logic arrives in Mission 2.3; the click handler already has the selected variant `id` to send.
+- Stock shown on the page can be a few minutes stale (cached); the cart validation endpoint is the source of truth before checkout.
+
 ## Changelog
+
+- **2026-11-11**: Mission 2.2: product detail page (`/productos/{slug}`) with gallery, size picker with stock states, branded 404 and Open Graph metadata; catalog cards link to it.
 
 - **2026-11-11**: Mission 2.1: product detail with ordered images and sized variants (`V2__create_product_images`), and read-only cart validation (`POST /api/cart/validate`).
 
