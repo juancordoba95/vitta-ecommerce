@@ -17,8 +17,17 @@ export type ProductSummary = {
 };
 
 export type ProductVariant = {
+  /** Identifier the cart sends to the API. */
+  id: number;
   size: string;
   stock: number;
+  /** `stock > 0`. */
+  available: boolean;
+};
+
+export type ProductImage = {
+  url: string;
+  position: number;
 };
 
 export type ProductDetail = {
@@ -30,6 +39,9 @@ export type ProductDetail = {
   price: number;
   imageUrl: string | null;
   category: Category;
+  /** Gallery sorted by position (the cover is position 0). */
+  images: ProductImage[];
+  /** Sorted by logical size order (S, M, L...). */
   variants: ProductVariant[];
 };
 
