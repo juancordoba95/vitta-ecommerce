@@ -10,7 +10,9 @@ Ecommerce for Vitta (lingerie and accessories). Monorepo:
 - `./mvnw spring-boot:run` — run the app.
 - `./mvnw verify` — build and run tests. **Requires Docker running**: integration tests start a MySQL 8 container via Testcontainers (`TestcontainersConfiguration` + `@ServiceConnection`), so they don't use `backend/.env` or a local MySQL.
 - `./mvnw -B -DskipTests verify` — compile everything (including tests) without Docker.
-- Credentials live in `backend/.env` (gitignored); template in `backend/.env.example`.
+- `./mvnw -B verify "-Dtest=!*IntegrationTest,!BackendApplicationTests,!*RepositoryTest,!*MigrationTest" -Dsurefire.failIfNoSpecifiedTests=false` — run the tests that don't need Docker (unit + `@WebMvcTest` slices, including security).
+- Credentials live in `backend/.env` (gitignored); template in `backend/.env.example`. Variables: `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `SPRING_PROFILES_ACTIVE`, `FRONTEND_URL`, `JWT_SECRET` (≥ 32 bytes, required outside `dev`), `JWT_EXPIRATION` (default `8h`), `ADMIN_EMAIL`/`ADMIN_PASSWORD` (optional admin bootstrap). The `dev` profile has placeholder defaults for the JWT/admin ones; tests use a test-only secret in `src/test/resources/config/application.yaml`.
+- Security: `common/security/SecurityConfig` (stateless JWT, deny by default, CORS). New `@WebMvcTest` slices must `@Import(SecurityConfig.class)` and new public endpoints must be added to its allow-list.
 
 ## Frontend commands (run from `/frontend`)
 
