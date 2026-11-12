@@ -18,3 +18,12 @@ spring:
 app:
   cors:
     allowed-origin: ${FRONTEND_URL:http://localhost:3000}
+  security:
+    jwt:
+      # Required (at least 32 bytes); there is no default outside the dev profile.
+      secret: ${JWT_SECRET}
+      expiration: ${JWT_EXPIRATION:8h}
+  # Initial admin, created on startup if missing. Optional: if unset, only a warning is logged.
+  admin:
+    email: ${ADMIN_EMAIL:}
+    password: ${ADMIN_PASSWORD:}

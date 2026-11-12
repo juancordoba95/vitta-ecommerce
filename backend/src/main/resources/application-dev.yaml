@@ -2,3 +2,12 @@
 spring:
   flyway:
     locations: classpath:db/migration,classpath:db/dev-data
+
+# Dev-only defaults so the app starts without extra setup. Never use them outside dev.
+app:
+  security:
+    jwt:
+      secret: ${JWT_SECRET:dev-only-insecure-jwt-secret-change-me-0123456789}
+  admin:
+    email: ${ADMIN_EMAIL:admin@vitta.local}
+    password: ${ADMIN_PASSWORD:dev-admin-password}
