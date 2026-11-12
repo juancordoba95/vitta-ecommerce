@@ -24,10 +24,14 @@ export type NewCartItem = Omit<CartItem, "quantity">;
 export type AddResult =
   /** The variant was added or its quantity increased. */
   | "added"
+  /** The variant has no stock: nothing is added. */
+  | "out-of-stock"
   /** The cart already holds all the known stock of the variant. */
   | "stock-limit"
   /** The variant is new and the cart already has {@link MAX_CART_ITEMS} items. */
-  | "cart-full";
+  | "cart-full"
+  /** Malformed input (quantity, ids, price or stock): nothing is added. */
+  | "invalid";
 
 /** Highest quantity allowed for an item: its known stock, capped by the API limit. */
 export function maxQuantity(item: Pick<CartItem, "stock">): number {
@@ -42,24 +46,50 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(Math.max(value, min), max);
 }
 
+/** Units of a variant that can still be added, given its known stock and the cart. */
+export function remainingQuantity(
+  items: CartItem[],
+  variantId: number,
+  stock: number,
+): number {
+  const inCart = items.find((item) => item.variantId === variantId)?.quantity ?? 0;
+  return Math.max(maxQuantity({ stock }) - inCart, 0);
+}
+
+function isValidNewItem(item: NewCartItem): boolean {
+  return (
+    Number.isInteger(item.variantId) &&
+    item.variantId > 0 &&
+    Number.isInteger(item.stock) &&
+    Number.isFinite(item.unitPrice) &&
+    item.unitPrice >= 0
+  );
+}
+
 /**
  * Adds `quantity` units of a variant. Adding a variant already in the cart sums the
- * quantity (never duplicates) and refreshes its snapshot; the result never exceeds the
- * known stock.
+ * quantity (never duplicates) and refreshes its snapshot. Whoever calls it, the cart
+ * never gets a variant without stock, more units than the known stock (`newItem.stock`),
+ * more than {@link MAX_ITEM_QUANTITY} units or more than {@link MAX_CART_ITEMS} items.
+ * If only part of `quantity` fits, the quantity is capped at the stock. On any
+ * rejection the same `items` array is returned unchanged.
  */
 export function addItem(
   items: CartItem[],
   newItem: NewCartItem,
   quantity = 1,
 ): { items: CartItem[]; result: AddResult } {
-  const existing = items.find((item) => item.variantId === newItem.variantId);
-  const max = maxQuantity(newItem);
+  if (!Number.isInteger(quantity) || quantity < 1 || !isValidNewItem(newItem)) {
+    return { items, result: "invalid" };
+  }
 
+  const max = maxQuantity(newItem);
+  if (max < 1) return { items, result: "out-of-stock" };
+
+  const existing = items.find((item) => item.variantId === newItem.variantId);
   if (existing) {
+    if (existing.quantity >= max) return { items, result: "stock-limit" };
     const nextQuantity = Math.min(existing.quantity + quantity, max);
-    if (nextQuantity <= existing.quantity) {
-      return { items, result: "stock-limit" };
-    }
     return {
       items: items.map((item) =>
         item === existing ? { ...newItem, quantity: nextQuantity } : item,
@@ -69,10 +99,9 @@ export function addItem(
   }
 
   if (items.length >= MAX_CART_ITEMS) return { items, result: "cart-full" };
-  if (max < 1) return { items, result: "stock-limit" };
 
   return {
-    items: [...items, { ...newItem, quantity: clamp(quantity, 1, max) }],
+    items: [...items, { ...newItem, quantity: Math.min(quantity, max) }],
     result: "added",
   };
 }

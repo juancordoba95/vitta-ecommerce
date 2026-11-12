@@ -201,7 +201,7 @@ The cart is not a route: it is a drawer available on every page from the header 
 - The "últimas unidades" threshold is `LOW_STOCK_THRESHOLD = 3` (`frontend/src/lib/stock.ts`).
 - No size is preselected and "Agregar al carrito" stays disabled until the customer picks one. Exception: if exactly one size has stock, it starts selected. The selected variant `id` is what the cart stores.
 - Stock shown on the page can be a few minutes stale (cached); the cart validation endpoint is the source of truth before checkout.
-- "Agregar al carrito" adds one unit of the selected size and opens the cart drawer. If the cart already holds all the known stock of that size, or already has 50 distinct items, nothing is added and an inline message explains why.
+- "Agregar al carrito" adds one unit of the selected size and opens the cart drawer. The button is disabled when no size is selected, when the selected size has no stock, or when the cart already holds all its known stock; in that last case it shows "Ya agregaste todas las unidades disponibles" (checked after mounting, since the cart lives in the browser). If the cart already has 50 distinct items, nothing is added and an inline message explains why.
 
 ### Cart
 
@@ -211,6 +211,7 @@ The cart lives only in the browser (see `POST /api/cart/validate`). Code: `front
 - **Item**: `variantId`, `productSlug`, `productName`, `size`, `imageUrl`, `unitPrice` (snapshot in ARS, for display only), `quantity` and `stock` (last known stock of the variant; `0` means not available).
 - **Limits** (same as the validation endpoint):
   - At most **50 distinct items** (`MAX_CART_ITEMS`). Adding a new variant to a full cart is rejected.
+  - **The store enforces the limits itself**, whatever calls it: `addItem` rejects variants without stock (`out-of-stock`), additions once the cart holds the known stock (`stock-limit`), a full cart (`cart-full`) and malformed input such as a quantity that is not a positive integer (`invalid`). A partial fit is capped at the stock. Rejections leave the cart untouched.
   - Adding a variant already in the cart **sums the quantity** instead of duplicating it.
   - `quantity` is always between **1** and the **known stock** (and never above `999`). The `−` button stops at 1 (removing is a separate "Quitar" action) and `+` stops at the stock.
 - **Hydration**: the persisted cart is only read on the client. The header badge and the drawer render it only after mounting (`useHydrated`), so the server HTML and the first client render always match.
