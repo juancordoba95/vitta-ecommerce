@@ -68,6 +68,7 @@ categories 1 ──< products 1 ──< product_variants
 | `products` | `id`, `name` (150), `slug` (170), `description` (2000, nullable), `price DECIMAL(10,2)`, `category_id`, `image_url` (500, nullable), `active` (default `true`), `created_at`, `updated_at` | `slug` unique; FK to `categories`; `price >= 0` |
 | `product_variants` | `id`, `product_id`, `size` (10), `stock` (default 0) | unique `(product_id, size)`; FK to `products` (on delete cascade); `stock >= 0` |
 | `product_images` | `id`, `product_id`, `url` (500), `position` | unique `(product_id, position)`; FK to `products` (on delete cascade); `position >= 0` |
+| `admin_users` | `id`, `email` (254), `password_hash` (100, BCrypt), `created_at` | `email` unique |
 
 - A product belongs to exactly one category and has one variant per size (S, M, L for now). Stock lives on the variant.
 - Sizes are free text; the API sorts them logically, not alphabetically: letter sizes `XXS … XXXL` first, then numeric sizes ascending, then anything else alphabetically.
@@ -78,7 +79,7 @@ categories 1 ──< products 1 ──< product_variants
 
 ## API
 
-Base path `/api`. Public, JSON, no endpoint writes data. Slugs must match `^[a-z0-9]+(-[a-z0-9]+)*$`.
+Base path `/api`, JSON. The catalog and cart endpoints below are public and read-only; admin endpoints need a JWT (see [Admin auth](#admin-auth)). Slugs must match `^[a-z0-9]+(-[a-z0-9]+)*$`.
 
 | Method | Path | Description |
 | --- | --- | --- |
@@ -163,10 +164,53 @@ Response, always `200` for a valid body even if some items have problems:
 ```
 
 - `404`: unknown or inactive product; unknown `category` filter.
-- `400`: invalid slug in the path or the `category` parameter; invalid cart validation body.
+- `400`: invalid slug in the path or the `category` parameter; invalid cart validation or login body.
+- `401`: wrong login credentials; missing, malformed or expired token (also any route outside the access rules below).
+- `403`: valid token without the `ADMIN` role.
+- `429`: too many failed logins (with `Retry-After`).
 - `500`: unexpected error (generic message; details are only logged).
 
-**CORS**: `/api/**` allows `GET` and `POST` from the origin in `FRONTEND_URL` (default `http://localhost:3000`).
+**CORS**: `/api/**` allows `GET`, `POST`, `PUT`, `PATCH`, `DELETE` (the last three for the admin CRUD) with the `Authorization` and `Content-Type` headers, from the origin in `FRONTEND_URL` (default `http://localhost:3000`). Configured in the Spring Security filter chain.
+
+### Admin auth
+
+Stateless JWT (HS256, signed with `JWT_SECRET`) for the admin panel. No sessions, cookies, CSRF, form login or HTTP Basic. A single admin account (multiple admins are out of v1); no refresh tokens or password recovery: when the token expires the admin logs in again.
+
+| Method | Path | Access | Description |
+| --- | --- | --- | --- |
+| `POST` | `/api/auth/login` | public | `{ "email", "password" }` → `200 { "token", "expiresAt" }`. |
+| `GET` | `/api/admin/me` | `ADMIN` | `200 { "email" }`. Lets the frontend check that its session is still valid. |
+
+```jsonc
+// POST /api/auth/login
+{ "email": "admin@example.com", "password": "..." }
+// 200
+{ "token": "eyJhbGciOiJIUzI1NiJ9...", "expiresAt": "2026-11-12T22:00:00Z" }
+```
+
+- Login body: `email` required, valid email, ≤ 254 chars (matched case-insensitively); `password` required, ≤ 72 chars (BCrypt limit). Violations → `400`.
+- Wrong password and unknown email return the same `401` (`"Invalid email or password"`), and both run a BCrypt check so timing does not reveal which accounts exist.
+- **Rate limit**: in memory, per client IP (`remoteAddr`): after 5 failed logins within a 1-minute window, further attempts get `429` (even with the right password) until the window ends. A successful login resets the counter. Behind a reverse proxy, `server.forward-headers-strategy` must be set so `remoteAddr` is the real client IP.
+- Token claims: `iss` = `vitta-backend`, `sub` = admin email, `roles` = `["ADMIN"]`, `iat`, `exp` (`JWT_EXPIRATION`, default 8h). Send it as `Authorization: Bearer <token>`.
+- Passwords are stored as BCrypt hashes in `admin_users` (`V3`); the table has no seed data.
+
+**Access rules** (anything not listed is denied):
+
+| Rule | Paths |
+| --- | --- |
+| Public | `GET /api/products/**`, `GET /api/categories/**`, `POST /api/cart/validate`, `POST /api/auth/login`, `GET /actuator/health/**` |
+| Role `ADMIN` | `/api/admin/**` |
+| Denied (`401` without token) | everything else |
+
+**Configuration** (backend env vars, template in `backend/.env.example`):
+
+| Variable | Required | Description |
+| --- | --- | --- |
+| `JWT_SECRET` | yes (outside `dev`) | HS256 secret, at least 32 bytes; startup fails if missing or shorter. Generate with `openssl rand -base64 48`. |
+| `JWT_EXPIRATION` | no | Token lifetime as a Spring `Duration` (`8h`, `30m`). Default `8h`. |
+| `ADMIN_EMAIL`, `ADMIN_PASSWORD` | no | On startup, if no admin with that email exists, one is created with the BCrypt-hashed password. Existing admins are never modified. If either is missing, a warning is logged and nothing is created. |
+
+The `dev` profile (`application-dev.yaml`) has insecure placeholder defaults for `JWT_SECRET`, `ADMIN_EMAIL` (`admin@vitta.local`) and `ADMIN_PASSWORD`, so local development works without extra setup. Tests use a test-only secret in `src/test/resources/config/application.yaml`; CI needs no GitHub secrets.
 
 ## Frontend
 
@@ -307,6 +351,8 @@ Tocar timbre 2B
 - Shipping cost is out of v1: it is agreed in the chat.
 
 ## Changelog
+
+- **2026-11-12**: Mission 4.1: admin auth with stateless JWT (HS256): `admin_users` table (`V3`), admin bootstrap from `ADMIN_EMAIL`/`ADMIN_PASSWORD`, `POST /api/auth/login` with per-IP rate limit, `GET /api/admin/me`, deny-by-default access rules, 401/403/429 as Problem Details, CORS moved into the security chain (adds `PUT`/`PATCH`/`DELETE` and `Authorization`).
 
 - **2026-11-12**: Mission 3: WhatsApp checkout (`/checkout` with validated summary and customer form, revalidation and change detection before sending, `wa.me` message with order code, `/checkout/confirmacion`), configured with `NEXT_PUBLIC_WHATSAPP_NUMBER`. Stock is not decremented.
 

@@ -1,0 +1,5 @@
+# Test-only settings, merged on top of src/main/resources/application.yaml.
+app:
+  security:
+    jwt:
+      secret: test-only-jwt-secret-not-used-anywhere-else-0123456789
