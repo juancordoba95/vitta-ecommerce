@@ -1,8 +1,5 @@
 import type { Metadata } from "next";
 import { Jost, Pinyon_Script } from "next/font/google";
-import { CartDrawer } from "@/components/cart/cart-drawer";
-import { SiteFooter } from "@/components/site-footer";
-import { SiteHeader } from "@/components/site-header";
 import "./globals.css";
 
 const jost = Jost({
@@ -22,18 +19,14 @@ export const metadata: Metadata = {
     "Lencería y accesorios pensados para que te elijas todos los días.",
 };
 
+/** Document shell only: the store (`(store)`) and the admin (`admin`) bring their own frame. */
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="es"
       className={`${jost.variable} ${pinyonScript.variable} h-full antialiased`}
     >
-      <body className="flex min-h-full flex-col bg-cream text-charcoal">
-        <SiteHeader />
-        <main className="flex-1">{children}</main>
-        <SiteFooter />
-        <CartDrawer />
-      </body>
+      <body className="flex min-h-full flex-col bg-cream text-charcoal">{children}</body>
     </html>
   );
 }
