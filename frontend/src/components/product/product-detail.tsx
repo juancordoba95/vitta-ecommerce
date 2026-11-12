@@ -34,7 +34,15 @@ export function ProductDetail({ product }: { product: Product }) {
           <p className="text-xl">{formatPrice(product.price)}</p>
         </div>
 
-        <ProductPurchase variants={product.variants} />
+        <ProductPurchase
+          product={{
+            slug: product.slug,
+            name: product.name,
+            price: product.price,
+            imageUrl: product.imageUrl ?? product.images[0]?.url ?? null,
+          }}
+          variants={product.variants}
+        />
 
         {product.description && (
           <div className="border-t border-charcoal/10 pt-6">
