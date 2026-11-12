@@ -35,6 +35,7 @@ Ecommerce for Vitta (lingerie and accessories). Monorepo:
 - One branch per mission: `feat/`, `fix/`, `chore/`, `docs/`, `ci/`.
 - Commits in English, Conventional Commits.
 - Open a PR with `gh pr create`. Never merge or push to `main`: the owner reviews and merges.
+- When closing each mission/sub-mission, deliver a close-out summary with: what was done, files/areas touched, the PR link and the status of the `ci` check.
 
 ## Rules
 

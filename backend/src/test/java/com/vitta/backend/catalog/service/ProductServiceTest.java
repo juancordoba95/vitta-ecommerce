@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Optional;
 
 import com.vitta.backend.catalog.dto.ProductDetailResponse;
+import com.vitta.backend.catalog.dto.ProductImageResponse;
 import com.vitta.backend.catalog.dto.ProductSummaryResponse;
 import com.vitta.backend.catalog.dto.ProductVariantResponse;
 import com.vitta.backend.catalog.entity.Category;
@@ -79,8 +80,12 @@ class ProductServiceTest {
 	@Test
 	void findActiveBySlugReturnsDetailWithCategoryAndVariants() {
 		Product product = product("conjunto-encaje");
+		// Inserted out of order on purpose: the response must sort sizes logically and images by position.
+		product.addVariant("L", 2);
 		product.addVariant("S", 4);
 		product.addVariant("M", 0);
+		product.addImage("https://img/back.jpg", 1);
+		product.addImage("https://img/front.jpg", 0);
 		given(productRepository.findBySlugAndActiveTrue("conjunto-encaje")).willReturn(Optional.of(product));
 
 		ProductDetailResponse result = productService.findActiveBySlug("conjunto-encaje");
@@ -89,8 +94,10 @@ class ProductServiceTest {
 		assertThat(result.description()).isEqualTo("Description");
 		assertThat(result.category().slug()).isEqualTo("conjuntos");
 		assertThat(result.category().name()).isEqualTo("Conjuntos");
-		assertThat(result.variants()).containsExactly(new ProductVariantResponse("S", 4),
-				new ProductVariantResponse("M", 0));
+		assertThat(result.images()).containsExactly(new ProductImageResponse("https://img/front.jpg", 0),
+				new ProductImageResponse("https://img/back.jpg", 1));
+		assertThat(result.variants()).containsExactly(new ProductVariantResponse(null, "S", 4, true),
+				new ProductVariantResponse(null, "M", 0, false), new ProductVariantResponse(null, "L", 2, true));
 	}
 
 	@Test

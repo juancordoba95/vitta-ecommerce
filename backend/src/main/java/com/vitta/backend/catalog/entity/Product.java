@@ -2,8 +2,8 @@ package com.vitta.backend.catalog.entity;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -63,9 +63,15 @@ public class Product {
 	@Column(name = "updated_at", nullable = false)
 	private LocalDateTime updatedAt;
 
+	// Sets (not Lists) so both collections can be fetch-joined in one query without a
+	// MultipleBagFetchException. Size order is logical, not by id: see SizeOrder.
 	@OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
 	@OrderBy("id")
-	private List<ProductVariant> variants = new ArrayList<>();
+	private Set<ProductVariant> variants = new LinkedHashSet<>();
+
+	@OneToMany(mappedBy = "product", cascade = CascadeType.ALL, orphanRemoval = true)
+	@OrderBy("position")
+	private Set<ProductImage> images = new LinkedHashSet<>();
 
 	public Product(String name, String slug, String description, BigDecimal price, Category category,
 			String imageUrl, boolean active) {
@@ -82,6 +88,12 @@ public class Product {
 		ProductVariant variant = new ProductVariant(this, size, stock);
 		variants.add(variant);
 		return variant;
+	}
+
+	public ProductImage addImage(String url, int position) {
+		ProductImage image = new ProductImage(this, url, position);
+		images.add(image);
+		return image;
 	}
 
 }
