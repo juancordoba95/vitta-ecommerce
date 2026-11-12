@@ -176,6 +176,8 @@ Response, always `200` for a valid body even if some items have problems:
 | --- | --- |
 | `/` | Hero + catalog grid; `?category={slug}` filters by category. Each card links to the product detail. |
 | `/productos/{slug}` | Product detail (consumes `GET /api/products/{slug}`). |
+| `/checkout` | Order summary revalidated against the API plus the customer form; sends the order via WhatsApp (see [Checkout via WhatsApp](#checkout-via-whatsapp)). |
+| `/checkout/confirmacion` | "¡Pedido listo!" screen with the order code. |
 
 The cart is not a route: it is a drawer available on every page from the header (see [Cart](#cart)).
 
@@ -216,7 +218,7 @@ The cart lives only in the browser (see `POST /api/cart/validate`). Code: `front
   - `quantity` is always between **1** and the **known stock** (and never above `999`). The `−` button stops at 1 (removing is a separate "Quitar" action) and `+` stops at the stock.
 - **Hydration**: the persisted cart is only read on the client. The header badge and the drawer render it only after mounting (`useHydrated`), so the server HTML and the first client render always match.
 - **Header**: a bag icon on the right opens the drawer; its badge shows the total **units** (sum of quantities), `99+` above 99, and is hidden when the cart is empty.
-- **Drawer**: a modal `<dialog>` (focus trap, `Escape`, click on the backdrop closes it, page scroll locked). Full width on mobile, a right-hand panel (`max-w-md`) from `sm` up. Each line shows image, name (links to the detail), size, unit price, `−`/`+` and "Quitar". Empty state: "Tu carrito está vacío" with a link to the catalog. "Finalizar pedido" is visible but disabled until the WhatsApp checkout (Mission 3).
+- **Drawer**: a modal `<dialog>` (focus trap, `Escape`, click on the backdrop closes it, page scroll locked). Full width on mobile, a right-hand panel (`max-w-md`) from `sm` up. Each line shows image, name (links to the detail), size, unit price, `−`/`+` and "Quitar". Empty state: "Tu carrito está vacío" with a link to the catalog. "Finalizar pedido" (shown whenever the cart is not empty) closes the drawer and goes to `/checkout`.
 
 #### Revalidation
 
@@ -234,7 +236,79 @@ Every time the drawer opens, and again whenever a variant or quantity changes wh
 - **API failure**: the cart is still shown with its last known data, plus a notice and a "Reintentar" button; the total is labelled "Total estimado" and computed locally from the snapshot prices of available items.
 - The server never stores the cart and validation does not reserve stock: Vitta confirms availability on WhatsApp.
 
+### Checkout via WhatsApp
+
+Code: `frontend/src/lib/checkout/` (pure logic: message and URL in `whatsapp.ts`, order code in `order-code.ts`, form rules in `checkout-form.ts`, change detection in `cart-changes.ts`, last order in `pending-order.ts`) and `frontend/src/components/checkout/`.
+
+**This version does not decrement or reserve stock.** Nothing is written on the server: the order is a pre-filled WhatsApp message, and Mariela confirms stock, payment and delivery in that chat.
+
+#### Configuration
+
+| Variable | Description |
+| --- | --- |
+| `NEXT_PUBLIC_WHATSAPP_NUMBER` | Store number that receives the orders, in international format with digits only: `54` + `9` + area code without the leading `0` + number without `15` (e.g. Buenos Aires `11 1234-5678` → `5491112345678`). Spaces, dashes, parentheses and a leading `+` are tolerated and stripped. |
+
+- It is a `NEXT_PUBLIC_` variable, so it is inlined into the client bundle **at build time**: changing it requires a new build (on Vercel, a redeploy).
+- The number only lives in environment variables (`frontend/.env.local` locally, the Vercel project settings in production); `.env.example` has an empty placeholder. It is never hardcoded.
+- If it is missing or malformed (not 10–15 digits), the page still works and "Confirmar pedido" shows "No podemos enviar pedidos por WhatsApp en este momento: falta configurar el número de la tienda…" instead of opening WhatsApp (and logs an error in the console).
+
+#### Flow
+
+1. **Drawer → `/checkout`**. The page renders after mounting (the cart lives in the browser); an empty cart shows "Tu carrito está vacío" with a link to the catalog.
+2. **Summary** ("Tu pedido"): the same lines, stock rules, revalidation, total and API-failure notice as the drawer (it reuses `CartLine`, `CartTotal` and `useCartValidation`), so quantities can still be edited or items removed. Unavailable items are not part of the order nor of the total.
+3. **Form** ("Tus datos"), validated on the client when confirming and then live as the customer types, with one message per field; the focus goes to the first invalid field:
+
+   | Field | Rule | Message |
+   | --- | --- | --- |
+   | Nombre | Required, up to 80 chars | "Ingresá tu nombre." |
+   | Entrega | Required: `Retiro` or `Envío` | "Elegí cómo querés recibir tu pedido." |
+   | Dirección | Required for `Envío` only, up to 120 chars | "Ingresá la dirección de entrega." |
+   | Localidad | Required for `Envío` only, up to 80 chars | "Ingresá tu localidad." |
+   | Notas | Optional, up to 500 chars | — |
+
+4. **"Confirmar pedido"**: the available items are sent to `POST /api/cart/validate` once more and compared with what the customer was seeing:
+   - **Something changed** (price, quantity above the stock left, item out of stock or gone): the response is applied to the cart (same rules as the revalidation above), a "Hubo cambios en tu pedido" notice lists each change, and **nothing is sent**. She reviews the summary and confirms again.
+   - **API failure**: an error asks to try again; nothing is sent.
+   - **Cart edited while validating**: asks to review and confirm again.
+   - **All OK**: a short order code is generated, the message and the `wa.me` URL are built from the server prices, the order is saved in `sessionStorage` (`vitta-last-order`) and the page moves to `/checkout/confirmacion`.
+5. **Confirmation** (`/checkout/confirmacion`): the first time it shows a new order it **empties the cart** and **opens WhatsApp** with `window.location.assign(url)`. It then shows "¡Pedido listo!", the order code with "Guardalo para consultar por tu pedido por WhatsApp.", an "Abrir WhatsApp de nuevo" link (new tab) in case WhatsApp did not open, and "Volver al catálogo". The order is marked as handled, so going back to this screen or reloading it never empties the cart or opens WhatsApp again. Without a stored order it shows "No encontramos un pedido reciente".
+
+**Why WhatsApp opens from the confirmation screen**: mobile browsers block `window.open()` that is not directly inside a user gesture, and confirming has to `await` the revalidation first. A same-tab navigation is never treated as a popup. On phones the `wa.me` link hands off to the WhatsApp app; on desktop the tab goes to WhatsApp Web, and the browser's back button returns to the "¡Pedido listo!" screen.
+
+#### Order code
+
+`VT-` + 4 random characters from `23456789ABCDEFGHJKLMNPQRSTUVWXYZ` (no `0`/`O`, `1`/`I`; Web Crypto), e.g. `VT-4F7K`. It only identifies the order in the chat; it is not stored on the server and is not guaranteed unique (~1M combinations).
+
+#### Message
+
+`https://wa.me/{NEXT_PUBLIC_WHATSAPP_NUMBER}?text={encodeURIComponent(message)}`. Plain text with line breaks, no WhatsApp markdown; prices via `formatPrice` (ARS). Customer fields are collapsed to one line (notes keep their line breaks). Example:
+
+```text
+¡Hola Vitta! Quiero hacer este pedido:
+
+Código de pedido: VT-4F7K
+
+• Conjunto Encaje Floral · Talle S · x1 · $ 42.900
+• Conjunto Tul Bordado · Talle S · x2 · $ 79.800
+
+Total: $ 122.700
+
+Nombre: Ana Pérez
+Entrega: Envío a domicilio
+Dirección: Av. Siempre Viva 742
+Localidad: Córdoba
+
+Notas:
+Tocar timbre 2B
+```
+
+- One line per item: name · size · quantity · subtotal (`unitPrice × quantity`, server price).
+- `Entrega` is `Retiro` or `Envío a domicilio`; `Dirección` and `Localidad` only appear for shipping; the `Notas` block only when there are notes.
+- Shipping cost is out of v1: it is agreed in the chat.
+
 ## Changelog
+
+- **2026-11-12**: Mission 3: WhatsApp checkout (`/checkout` with validated summary and customer form, revalidation and change detection before sending, `wa.me` message with order code, `/checkout/confirmacion`), configured with `NEXT_PUBLIC_WHATSAPP_NUMBER`. Stock is not decremented.
 
 - **2026-11-12**: Mission 2.3: client-side cart (zustand + localStorage), header badge and cart drawer revalidated against `POST /api/cart/validate`; "Agregar al carrito" wired on the product detail.
 

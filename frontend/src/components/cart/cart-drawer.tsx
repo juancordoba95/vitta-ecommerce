@@ -5,12 +5,10 @@ import { useEffect, useRef } from "react";
 import { CloseIcon, HeartIcon } from "@/components/icons";
 import { estimatedTotal, isAvailable } from "@/lib/cart/cart-items";
 import { useCartStore, useHydrated } from "@/lib/cart/cart-store";
-import {
-  useCartValidation,
-  type CartValidation,
-} from "@/lib/cart/use-cart-validation";
-import { formatPrice } from "@/lib/format";
+import { useCartValidation } from "@/lib/cart/use-cart-validation";
 import { CartLine } from "./cart-line";
+import { CartTotal } from "./cart-total";
+import { CartValidationError } from "./cart-validation-error";
 
 /**
  * Cart side panel built on a modal <dialog> (focus trap, Escape and inert background for
@@ -87,22 +85,7 @@ function CartContents({ onClose }: { onClose: () => void }) {
       ) : (
         <>
           {validation.status === "error" && (
-            <div
-              role="alert"
-              className="mx-5 mt-4 flex flex-col gap-2 rounded-soft bg-butter/70 px-4 py-3 text-sm"
-            >
-              <p>
-                No pudimos actualizar precios y stock. Te mostramos los últimos datos que
-                tenemos.
-              </p>
-              <button
-                type="button"
-                onClick={validation.retry}
-                className="self-start border-b border-charcoal/40 pb-0.5 text-[0.65rem] tracking-label uppercase hover:border-charcoal"
-              >
-                Reintentar
-              </button>
-            </div>
+            <CartValidationError onRetry={validation.retry} className="mx-5 mt-4" />
           )}
 
           <ul className="flex-1 divide-y divide-charcoal/10 overflow-y-auto overscroll-contain px-5">
@@ -127,47 +110,19 @@ function CartContents({ onClose }: { onClose: () => void }) {
                 Los productos sin stock no se suman al total.
               </p>
             )}
-            <button
-              type="button"
-              disabled
-              aria-describedby="checkout-soon"
-              className="h-12 w-full rounded-full bg-charcoal text-[0.7rem] tracking-label text-cream uppercase disabled:cursor-not-allowed disabled:opacity-35"
+            <Link
+              href="/checkout"
+              onClick={onClose}
+              aria-describedby="checkout-hint"
+              className="flex h-12 w-full items-center justify-center rounded-full bg-charcoal text-[0.7rem] tracking-label text-cream uppercase transition-opacity hover:opacity-85"
             >
               Finalizar pedido
-            </button>
-            <p id="checkout-soon" className="-mt-2 text-center text-xs text-charcoal/60">
-              Muy pronto vas a poder enviarnos tu pedido por WhatsApp.
+            </Link>
+            <p id="checkout-hint" className="-mt-2 text-center text-xs text-charcoal/60">
+              Completás tus datos y nos enviás el pedido por WhatsApp.
             </p>
           </div>
         </>
-      )}
-    </div>
-  );
-}
-
-function CartTotal({
-  validation,
-  estimated,
-}: {
-  validation: CartValidation;
-  estimated: number;
-}) {
-  const isError = validation.status === "error";
-  return (
-    <div
-      aria-live="polite"
-      aria-busy={validation.status === "loading"}
-      className="flex items-baseline justify-between"
-    >
-      <span className="text-[0.7rem] font-normal tracking-label uppercase">
-        {isError ? "Total estimado" : "Total"}
-      </span>
-      {validation.status === "success" && validation.total !== null ? (
-        <span className="text-lg">{formatPrice(validation.total)}</span>
-      ) : isError ? (
-        <span className="text-lg">{formatPrice(estimated)}</span>
-      ) : (
-        <span className="text-sm text-charcoal/60">Calculando…</span>
       )}
     </div>
   );

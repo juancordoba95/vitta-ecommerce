@@ -19,7 +19,7 @@ Ecommerce for Vitta (lingerie and accessories). Monorepo:
 - `npm run lint` — ESLint.
 - `npm run typecheck` — `tsc --noEmit`.
 - `npm run build` — production build.
-- Env vars live in `frontend/.env.local` (gitignored); template in `frontend/.env.example` (`NEXT_PUBLIC_API_URL`).
+- Env vars live in `frontend/.env.local` (gitignored); template in `frontend/.env.example` (`NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_WHATSAPP_NUMBER`). `NEXT_PUBLIC_*` values are inlined at build time.
 - Next.js 16 has breaking changes vs. older versions: check `frontend/AGENTS.md` and `node_modules/next/dist/docs/` before writing code.
 
 ## CI

@@ -21,6 +21,8 @@ type CartState = {
   setQuantity: (variantId: number, quantity: number) => void;
   removeItem: (variantId: number) => void;
   applyValidation: (response: CartValidationResponse) => void;
+  /** Empties the cart (after an order is sent). */
+  clear: () => void;
   open: () => void;
   close: () => void;
 };
@@ -48,6 +50,7 @@ export const useCartStore = create<CartState>()(
         set({ items: removeItem(get().items, variantId) }),
       applyValidation: (response) =>
         set({ items: applyValidation(get().items, response) }),
+      clear: () => set({ items: [] }),
       open: () => set({ isOpen: true }),
       close: () => set({ isOpen: false }),
     }),
