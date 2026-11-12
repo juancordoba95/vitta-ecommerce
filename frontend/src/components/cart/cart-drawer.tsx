@@ -110,16 +110,16 @@ function CartContents({ onClose }: { onClose: () => void }) {
                 Los productos sin stock no se suman al total.
               </p>
             )}
-            <button
-              type="button"
-              disabled
-              aria-describedby="checkout-soon"
-              className="h-12 w-full rounded-full bg-charcoal text-[0.7rem] tracking-label text-cream uppercase disabled:cursor-not-allowed disabled:opacity-35"
+            <Link
+              href="/checkout"
+              onClick={onClose}
+              aria-describedby="checkout-hint"
+              className="flex h-12 w-full items-center justify-center rounded-full bg-charcoal text-[0.7rem] tracking-label text-cream uppercase transition-opacity hover:opacity-85"
             >
               Finalizar pedido
-            </button>
-            <p id="checkout-soon" className="-mt-2 text-center text-xs text-charcoal/60">
-              Muy pronto vas a poder enviarnos tu pedido por WhatsApp.
+            </Link>
+            <p id="checkout-hint" className="-mt-2 text-center text-xs text-charcoal/60">
+              Completás tus datos y nos enviás el pedido por WhatsApp.
             </p>
           </div>
         </>
