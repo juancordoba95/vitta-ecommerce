@@ -114,7 +114,8 @@ public class AdminProductService {
 	}
 
 	private static String escapeLike(String text) {
-		return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_");
+		// '!' is the LIKE escape character declared in ProductRepository.searchAdmin.
+		return text.replace("!", "!!").replace("%", "!%").replace("_", "!_");
 	}
 
 	private static ConflictException slugTaken(String slug) {

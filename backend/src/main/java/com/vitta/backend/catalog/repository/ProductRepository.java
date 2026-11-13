@@ -31,16 +31,17 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
 
 	/**
 	 * Admin search over all products (active or not). {@code namePattern} is a lowercase
-	 * {@code LIKE} pattern escaped with {@code \}; {@code null} parameters mean no filter.
+	 * {@code LIKE} pattern escaped with {@code !} (Spring Data's query parser mangles a
+	 * backslash escape); {@code null} parameters mean no filter.
 	 */
 	@EntityGraph(attributePaths = "category")
 	@Query(value = """
 			select p from Product p
-			where (:namePattern is null or lower(p.name) like :namePattern escape '\')
+			where (:namePattern is null or lower(p.name) like :namePattern escape '!')
 			  and (:categoryId is null or p.category.id = :categoryId)
 			""", countQuery = """
 			select count(p) from Product p
-			where (:namePattern is null or lower(p.name) like :namePattern escape '\')
+			where (:namePattern is null or lower(p.name) like :namePattern escape '!')
 			  and (:categoryId is null or p.category.id = :categoryId)
 			""")
 	Page<Product> searchAdmin(@Param("namePattern") String namePattern, @Param("categoryId") Long categoryId,

@@ -132,10 +132,10 @@ class AdminProductServiceTest {
 	@Test
 	void searchEscapesLikeWildcardsAndLowercases() {
 		Page<Product> empty = new PageImpl<>(List.of());
-		given(productRepository.searchAdmin(eq("%100\\%\\_algod\\_n%"), eq(3L), any(Pageable.class)))
+		given(productRepository.searchAdmin(eq("%100!%!_algod!_n!!%"), eq(3L), any(Pageable.class)))
 			.willReturn(empty);
 
-		assertThat(service.search(" 100%_ALGOD_N ", 3L, 0, 20).totalElements()).isZero();
+		assertThat(service.search(" 100%_ALGOD_N! ", 3L, 0, 20).totalElements()).isZero();
 	}
 
 	private Product product(String slug) {
