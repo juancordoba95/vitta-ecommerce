@@ -26,7 +26,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import org.springframework.web.servlet.HandlerExceptionResolver;
 
 /**
- * Stateless API security: public catalog/cart/login endpoints, JWT-protected
+ * Stateless API security: public catalog/cart/login endpoints and local uploads, JWT-protected
  * {@code /api/admin/**} (role ADMIN), everything else denied.
  */
 @Configuration(proxyBeanMethods = false)
@@ -52,7 +52,7 @@ public class SecurityConfig {
 				.permitAll()
 				.requestMatchers(HttpMethod.POST, "/api/cart/validate", "/api/auth/login")
 				.permitAll()
-				.requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/health/**")
+				.requestMatchers(HttpMethod.GET, "/actuator/health", "/actuator/health/**", "/uploads/**")
 				.permitAll()
 				.requestMatchers("/api/admin/**")
 				.hasRole("ADMIN")

@@ -28,6 +28,7 @@
 	</scm>
 	<properties>
 		<java.version>21</java.version>
+		<cloudinary.version>2.6.0</cloudinary.version>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -61,6 +62,12 @@
 		<dependency>
 			<groupId>org.flywaydb</groupId>
 			<artifactId>flyway-mysql</artifactId>
+		</dependency>
+
+		<dependency>
+			<groupId>com.cloudinary</groupId>
+			<artifactId>cloudinary-http5</artifactId>
+			<version>${cloudinary.version}</version>
 		</dependency>
 
 		<dependency>
