@@ -33,12 +33,21 @@ public class ProductImage {
 	@Column(nullable = false, length = 500)
 	private String url;
 
+	/** Identifier in the image storage; {@code null} for external images. */
+	@Column(name = "storage_key", length = 300)
+	private String storageKey;
+
 	@Column(nullable = false)
 	private int position;
 
-	ProductImage(Product product, String url, int position) {
+	ProductImage(Product product, String url, String storageKey, int position) {
 		this.product = product;
 		this.url = url;
+		this.storageKey = storageKey;
+		this.position = position;
+	}
+
+	public void moveTo(int position) {
 		this.position = position;
 	}
 

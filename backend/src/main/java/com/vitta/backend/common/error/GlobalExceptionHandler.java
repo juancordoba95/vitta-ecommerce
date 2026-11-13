@@ -4,6 +4,7 @@ import com.vitta.backend.auth.exception.InvalidCredentialsException;
 import com.vitta.backend.auth.exception.TooManyLoginAttemptsException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
@@ -28,6 +29,30 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 	ProblemDetail handleNotFound(ResourceNotFoundException ex) {
 		ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
 		problem.setTitle("Resource not found");
+		return problem;
+	}
+
+	@ExceptionHandler(ConflictException.class)
+	ProblemDetail handleConflict(ConflictException ex) {
+		ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+		problem.setTitle("Conflict");
+		return problem;
+	}
+
+	/** Safety net for races the services' own checks cannot see (e.g. two requests, same slug). */
+	@ExceptionHandler(DataIntegrityViolationException.class)
+	ProblemDetail handleDataIntegrityViolation(DataIntegrityViolationException ex) {
+		log.warn("Data integrity violation: {}", ex.getMostSpecificCause().getMessage());
+		ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT,
+				"The request conflicts with existing data");
+		problem.setTitle("Conflict");
+		return problem;
+	}
+
+	@ExceptionHandler(InvalidRequestException.class)
+	ProblemDetail handleInvalidRequest(InvalidRequestException ex) {
+		ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
+		problem.setTitle("Bad Request");
 		return problem;
 	}
 

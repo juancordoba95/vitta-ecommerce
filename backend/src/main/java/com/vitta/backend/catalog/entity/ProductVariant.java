@@ -42,4 +42,13 @@ public class ProductVariant {
 		this.stock = stock;
 	}
 
+	public void update(String size, int stock) {
+		this.size = size;
+		this.stock = stock;
+	}
+
+	public void changeStock(int stock) {
+		this.stock = stock;
+	}
+
 }

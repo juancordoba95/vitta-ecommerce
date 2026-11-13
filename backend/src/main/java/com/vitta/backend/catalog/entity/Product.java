@@ -2,6 +2,7 @@ package com.vitta.backend.catalog.entity;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
@@ -91,9 +92,37 @@ public class Product {
 	}
 
 	public ProductImage addImage(String url, int position) {
-		ProductImage image = new ProductImage(this, url, position);
+		return addImage(url, null, position);
+	}
+
+	public ProductImage addImage(String url, String storageKey, int position) {
+		ProductImage image = new ProductImage(this, url, storageKey, position);
 		images.add(image);
 		return image;
+	}
+
+	public void removeImage(ProductImage image) {
+		images.remove(image);
+	}
+
+	public void update(String name, String slug, String description, BigDecimal price, Category category) {
+		this.name = name;
+		this.slug = slug;
+		this.description = description;
+		this.price = price;
+		this.category = category;
+	}
+
+	public void setActive(boolean active) {
+		this.active = active;
+	}
+
+	/** Keeps the listing cover ({@code image_url}) in sync with the first gallery image. */
+	public void syncCover() {
+		this.imageUrl = images.stream()
+			.min(Comparator.comparingInt(ProductImage::getPosition))
+			.map(ProductImage::getUrl)
+			.orElse(null);
 	}
 
 }
