@@ -5,9 +5,11 @@ import { ORDER_CODE_PATTERN } from "./order-code";
 export type PendingOrder = {
   code: string;
   whatsappUrl: string;
+  /** Whether checkout managed to open WhatsApp in a new tab (popup not blocked). */
+  opened: boolean;
   /**
-   * `false` until the confirmation screen has emptied the cart and opened WhatsApp
-   * once, so going back to it (or a reload) never repeats either.
+   * `false` until the confirmation screen has emptied the cart once, so going back to
+   * it (or a reload) never repeats it.
    */
   handled: boolean;
 };
@@ -42,9 +44,15 @@ function parse(raw: string | null): PendingOrder | null {
       ORDER_CODE_PATTERN.test(value.code) &&
       typeof value.whatsappUrl === "string" &&
       value.whatsappUrl.startsWith("https://wa.me/") &&
+      typeof value.opened === "boolean" &&
       typeof value.handled === "boolean"
     ) {
-      return { code: value.code, whatsappUrl: value.whatsappUrl, handled: value.handled };
+      return {
+        code: value.code,
+        whatsappUrl: value.whatsappUrl,
+        opened: value.opened,
+        handled: value.handled,
+      };
     }
   } catch {
     // Malformed JSON: treat as no order.
@@ -59,7 +67,7 @@ export function savePendingOrder(order: Omit<PendingOrder, "handled">): void {
 
 /**
  * Marks the stored order as handled. Returns `true` only the first time, so the
- * caller runs its one-off side effects (empty the cart, open WhatsApp) exactly once.
+ * caller runs its one-off side effect (empty the cart) exactly once.
  */
 export function claimPendingOrder(): PendingOrder | null {
   const order = parse(readRaw());
