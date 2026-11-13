@@ -7,6 +7,7 @@ import { SESSION_EXPIRED_PATH } from "@/lib/admin/auth";
 import { ApiError } from "@/lib/api/client";
 import { CATALOG_CACHE_TAG } from "@/lib/api/catalog";
 import type { AdminImage, AdminProductDetail, AdminVariant } from "@/lib/admin/admin-types";
+import { parsePrice } from "@/lib/parse-price";
 
 export type ActionResult<T = undefined> =
   | { success: true; data: T }
@@ -47,15 +48,18 @@ function parseProductFormData(formData: FormData): ProductBody | { error: string
   const slug = (formData.get("slug") as string)?.trim();
 
   if (!name) return { error: "El nombre es obligatorio." };
-  if (!priceStr || isNaN(parseFloat(priceStr)) || parseFloat(priceStr) <= 0)
-    return { error: "El precio debe ser mayor a 0." };
+  const price = parsePrice(priceStr ?? "");
+  if (price === null)
+    return { error: "Ingresá un precio válido, por ejemplo 15000 o 15000,50." };
+  if (price > 99_999_999.99)
+    return { error: "El precio máximo es $99.999.999,99." };
   if (!categoryIdStr || isNaN(parseInt(categoryIdStr)))
     return { error: "Seleccioná una categoría." };
 
   return {
     name,
     description: description || undefined,
-    price: parseFloat(priceStr),
+    price,
     categoryId: parseInt(categoryIdStr),
     slug: slug || undefined,
   };

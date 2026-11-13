@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { AdminCategory, AdminProductDetail } from "@/lib/admin/admin-types";
 import { updateProduct } from "@/app/admin/(panel)/productos/actions";
+import { parsePrice } from "@/lib/parse-price";
 
 const labelCls = "text-[0.65rem] font-normal tracking-label uppercase";
 const inputCls =
@@ -63,8 +64,9 @@ function EditForm({
     const slug = (data.get("slug") as string)?.trim();
 
     if (!name) { setError("El nombre es obligatorio."); setSaving(false); return; }
-    const price = parseFloat(priceStr);
-    if (isNaN(price) || price <= 0) { setError("El precio debe ser mayor a 0."); setSaving(false); return; }
+    const price = parsePrice(priceStr);
+    if (price === null) { setError("Ingresá un precio válido, por ejemplo 15000 o 15000,50."); setSaving(false); return; }
+    if (price > 99_999_999.99) { setError("El precio máximo es $99.999.999,99."); setSaving(false); return; }
     if (isNaN(categoryId)) { setError("Seleccioná una categoría."); setSaving(false); return; }
 
     const result = await updateProduct(product.id, {
@@ -159,10 +161,9 @@ function PriceField({ defaultValue = "" }: { defaultValue?: string }) {
       <input
         id="pf-price"
         name="price"
-        type="number"
+        type="text"
+        inputMode="decimal"
         required
-        min="0.01"
-        step="0.01"
         defaultValue={defaultValue}
         className={inputCls}
         placeholder="42900"
