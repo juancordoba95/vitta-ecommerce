@@ -222,8 +222,13 @@ The `dev` profile (`application-dev.yaml`) has insecure placeholder defaults for
 | `/productos/{slug}` | Product detail (consumes `GET /api/products/{slug}`). |
 | `/checkout` | Order summary revalidated against the API plus the customer form; sends the order via WhatsApp (see [Checkout via WhatsApp](#checkout-via-whatsapp)). |
 | `/checkout/confirmacion` | "¡Pedido listo!" screen with the order code. |
+| `/admin/login` | Admin login (see [Admin frontend](#admin-frontend)). |
+| `/admin` | Admin panel home; protected. |
+| `/admin/productos`, `/admin/categorias` | Admin sections (placeholders until M4.4); protected. |
 
 The cart is not a route: it is a drawer available on every page from the header (see [Cart](#cart)).
+
+Layouts: the root `app/layout.tsx` only holds the document (fonts, `<html>`, `<body>`). The store pages live in the `app/(store)/` route group, whose layout adds the header, footer and cart drawer (`StoreChrome`, also used by the root `not-found.tsx`); `app/admin/` has its own frame. Route groups do not change URLs.
 
 ### Product detail: `/productos/{slug}`
 
@@ -314,10 +319,10 @@ Code: `frontend/src/lib/checkout/` (pure logic: message and URL in `whatsapp.ts`
    - **Something changed** (price, quantity above the stock left, item out of stock or gone): the response is applied to the cart (same rules as the revalidation above), a "Hubo cambios en tu pedido" notice lists each change, and **nothing is sent**. She reviews the summary and confirms again.
    - **API failure**: an error asks to try again; nothing is sent.
    - **Cart edited while validating**: asks to review and confirm again.
-   - **All OK**: a short order code is generated, the message and the `wa.me` URL are built from the server prices, the order is saved in `sessionStorage` (`vitta-last-order`) and the page moves to `/checkout/confirmacion`.
-5. **Confirmation** (`/checkout/confirmacion`): the first time it shows a new order it **empties the cart** and **opens WhatsApp** with `window.location.assign(url)`. It then shows "¡Pedido listo!", the order code with "Guardalo para consultar por tu pedido por WhatsApp.", an "Abrir WhatsApp de nuevo" link (new tab) in case WhatsApp did not open, and "Volver al catálogo". The order is marked as handled, so going back to this screen or reloading it never empties the cart or opens WhatsApp again. Without a stored order it shows "No encontramos un pedido reciente".
+   - **All OK**: a short order code is generated, the message and the `wa.me` URL are built from the server prices, the new tab (see below) is pointed at that URL, the order is saved in `sessionStorage` (`vitta-last-order`, with whether the tab could be opened) and the store tab moves to `/checkout/confirmacion`.
+5. **Confirmation** (`/checkout/confirmacion`): the first time it shows a new order it **empties the cart**. It shows "¡Pedido listo!", the order code with "Guardalo para consultar por tu pedido por WhatsApp.", a WhatsApp link (`target="_blank"`, `rel="noopener noreferrer"`) and "Volver al catálogo". If the tab opened, the copy says WhatsApp was opened in a new tab and the link reads "Abrir WhatsApp de nuevo" (secondary); if the browser blocked it, the link is the main button "Abrir WhatsApp". The order is marked as handled, so going back to this screen or reloading it never empties the cart again. Without a stored order it shows "No encontramos un pedido reciente".
 
-**Why WhatsApp opens from the confirmation screen**: mobile browsers block `window.open()` that is not directly inside a user gesture, and confirming has to `await` the revalidation first. A same-tab navigation is never treated as a popup. On phones the `wa.me` link hands off to the WhatsApp app; on desktop the tab goes to WhatsApp Web, and the browser's back button returns to the "¡Pedido listo!" screen.
+**WhatsApp in a new tab**: browsers (especially on mobile) block `window.open()` that is not directly inside a user gesture, and confirming has to `await` the revalidation first. So the submit handler opens an empty tab synchronously ("Abriendo WhatsApp…", `opener` cleared), *before* the revalidation, and only sets its location to `wa.me` once everything is OK; on any failure (API error, cart edited, changes detected) that tab is closed. If `window.open()` returns `null` (blocked anyway), the confirmation screen's "Abrir WhatsApp" button is the fallback. On phones the `wa.me` link hands off to the WhatsApp app; on desktop it opens WhatsApp Web in the new tab while the store stays on "¡Pedido listo!".
 
 #### Order code
 
@@ -350,9 +355,42 @@ Tocar timbre 2B
 - `Entrega` is `Retiro` or `Envío a domicilio`; `Dirección` and `Localidad` only appear for shipping; the `Notas` block only when there are notes.
 - Shipping cost is out of v1: it is agreed in the chat.
 
+### Admin frontend
+
+Code: `frontend/src/lib/admin/` (server-only session helpers), `frontend/src/app/api/session/`, `frontend/src/proxy.ts`, `frontend/src/app/admin/` and `frontend/src/components/admin/`.
+
+**Session by httpOnly cookie**: the browser never sees the JWT. The Next server talks to the backend and keeps the token in a cookie:
+
+| Cookie | Value | Attributes |
+| --- | --- | --- |
+| `vitta_admin` | Backend JWT | `HttpOnly`, `SameSite=Lax`, `Secure` in production, `Path=/`, `Expires` = the login's `expiresAt` |
+
+Route handlers (same origin as the front, not the backend):
+
+| Method | Path | Behavior |
+| --- | --- | --- |
+| `POST` | `/api/session` | `{ email, password }` → calls `POST /api/auth/login` from the server. `200 { ok: true }` and sets the cookie; `401 { error: "invalid" }` (also for `400`); `429 { error: "rate_limited" }` with the backend's `Retry-After`; `502 { error: "unavailable" }` when the backend is down or answers something unexpected. The token is never in the response. |
+| `DELETE` | `/api/session` | Logout: deletes the cookie, `204`. |
+| `GET` | `/api/session/expired` | Deletes the cookie and `303` redirects to `/admin/login`. Used by the panel layout when the token is rejected (Server Components can't delete cookies). |
+
+- **Backend URL**: the server reuses `NEXT_PUBLIC_API_URL` (no extra variable); it must be reachable from the Next server.
+- **`adminFetch(path, { method, body })`** (`lib/admin/admin-fetch.ts`, server-only): calls the backend with `Authorization: Bearer <cookie>` and parses the JSON. Throws `AdminUnauthorizedError` when there is no cookie or on `401`/`403`, `ApiError` otherwise. For the admin screens (M4.4), from Server Components, Server Functions or Route Handlers only.
+- **Rate limit**: logins now reach the backend from the Next server's IP, so the per-IP limit (5 failures/minute) is shared by every admin login attempt. Acceptable with a single admin.
+
+**Protected routes**:
+
+1. `proxy.ts` (matcher `/admin`, `/admin/:path*`) only checks that the cookie exists: without it, any `/admin/**` page except `/admin/login` redirects to `/admin/login`; `/admin/login` with it redirects to `/admin`.
+2. The panel layout (`app/admin/(panel)/layout.tsx`) validates the token with `GET /api/admin/me` before rendering anything (behind a `<Suspense>` skeleton, as required by Cache Components). `401`/`403` → `/api/session/expired` → login. Backend unreachable → "No pudimos conectar con el servidor" (the session is kept).
+3. The login page lives in `app/admin/(auth)/`, outside the panel layout.
+
+**Screens**: `/admin/login` (email + password; "Email o contraseña incorrectos" on `401`, "Demasiados intentos, probá de nuevo en un minuto" on `429`, a generic error otherwise; the button is disabled while sending). The panel has a top bar on phones and a sidebar from `lg` with the logo, links to Productos and Categorías, the admin email and "Cerrar sesión". `/admin` shows a welcome; the sections are placeholders until M4.4.
+
+**Not indexed**: `app/admin/layout.tsx` sets `robots: { index: false, follow: false }` for the whole `/admin` tree (login included). There is no sitemap.
+
 ## Changelog
 
 - **2026-11-12**: Mission 4.1: admin auth with stateless JWT (HS256): `admin_users` table (`V3`), admin bootstrap from `ADMIN_EMAIL`/`ADMIN_PASSWORD`, `POST /api/auth/login` with per-IP rate limit, `GET /api/admin/me`, deny-by-default access rules, 401/403/429 as Problem Details, CORS moved into the security chain (adds `PUT`/`PATCH`/`DELETE` and `Authorization`).
+- **2026-11-12**: Mission 4.3: admin login and protected `/admin` in the frontend: session in the httpOnly `vitta_admin` cookie through `/api/session` route handlers, server-only `adminFetch`, `proxy.ts` guard plus server-side validation with `/api/admin/me`, noindex. Store pages moved into the `(store)` route group (URLs unchanged). Checkout opens WhatsApp in a new tab, with an "Abrir WhatsApp" fallback when the browser blocks it.
 
 - **2026-11-12**: Mission 3: WhatsApp checkout (`/checkout` with validated summary and customer form, revalidation and change detection before sending, `wa.me` message with order code, `/checkout/confirmacion`), configured with `NEXT_PUBLIC_WHATSAPP_NUMBER`. Stock is not decremented.
 

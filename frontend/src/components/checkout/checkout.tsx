@@ -48,6 +48,24 @@ function toRequest(items: CartItem[]): CartValidationRequest {
   return { items: items.map(({ variantId, quantity }) => ({ variantId, quantity })) };
 }
 
+/**
+ * Opens an empty tab to be pointed at wa.me once the order is confirmed. Must run
+ * synchronously inside the submit so popup blockers allow it; `null` when blocked.
+ */
+function openBlankTab(): Window | null {
+  const tab = window.open("", "_blank");
+  if (tab === null) return null;
+  try {
+    // Same as rel="noopener": wa.me must not be able to reach back into the store.
+    tab.opener = null;
+    tab.document.title = "Abriendo WhatsApp…";
+    tab.document.body.textContent = "Abriendo WhatsApp…";
+  } catch {
+    // Cosmetic only.
+  }
+  return tab;
+}
+
 function toCustomer(values: CheckoutFormValues): OrderCustomer {
   const delivery = values.delivery === "shipping" ? "shipping" : "pickup";
   return {
@@ -138,6 +156,14 @@ function CheckoutContent({ items }: { items: CartItem[] }) {
       return;
     }
 
+    // Open WhatsApp's tab now, inside the click: after the await below the browser
+    // would treat window.open() as an unrequested popup and block it.
+    const tab = openBlankTab();
+    function abort() {
+      tab?.close();
+      setSubmitting(false);
+    }
+
     // Revalidate right before sending: stock and prices may have changed.
     const request = toRequest(orderItems);
     setSubmitting(true);
@@ -147,14 +173,14 @@ function CheckoutContent({ items }: { items: CartItem[] }) {
     } catch (error) {
       console.warn("[checkout] validation failed:", error);
       setSubmitError("api");
-      setSubmitting(false);
+      abort();
       return;
     }
 
     const current = useCartStore.getState().items.filter(isAvailable);
     if (JSON.stringify(toRequest(current)) !== JSON.stringify(request)) {
       setSubmitError("cartChanged");
-      setSubmitting(false);
+      abort();
       return;
     }
 
@@ -162,7 +188,7 @@ function CheckoutContent({ items }: { items: CartItem[] }) {
     applyValidation(response);
     if (detected.length > 0) {
       setChanges(detected);
-      setSubmitting(false);
+      abort();
       return;
     }
 
@@ -183,9 +209,11 @@ function CheckoutContent({ items }: { items: CartItem[] }) {
       customer: toCustomer(values),
     });
 
-    // WhatsApp is opened by the confirmation screen with a same-tab navigation: a
-    // window.open() here, after the await, would be blocked as a popup on mobile.
-    savePendingOrder({ code, whatsappUrl: buildWhatsAppUrl(number, message) });
+    // The store tab moves to the confirmation screen, which offers an "Abrir WhatsApp"
+    // link when the browser blocked the new tab anyway.
+    const whatsappUrl = buildWhatsAppUrl(number, message);
+    if (tab !== null) tab.location.href = whatsappUrl;
+    savePendingOrder({ code, whatsappUrl, opened: tab !== null });
     shouldReset.current = true;
     router.replace(CONFIRMATION_PATH);
   }
@@ -263,7 +291,7 @@ function CheckoutContent({ items }: { items: CartItem[] }) {
             {submitting ? "Verificando tu pedido…" : "Confirmar pedido"}
           </button>
           <p id="checkout-submit-hint" className="text-xs text-charcoal/60 sm:max-w-sm">
-            Vamos a abrir WhatsApp con tu pedido listo para enviar. Ahí te confirmamos
+            Vamos a abrir WhatsApp en una pestaña nueva con tu pedido listo para enviar. Ahí te confirmamos
             stock, pago y entrega.
           </p>
         </div>

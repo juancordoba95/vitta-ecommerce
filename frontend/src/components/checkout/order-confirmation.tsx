@@ -9,11 +9,14 @@ import { claimPendingOrder, usePendingOrder } from "@/lib/checkout/pending-order
 const primaryButton =
   "flex h-12 w-full items-center justify-center rounded-full bg-charcoal px-8 text-[0.7rem] tracking-label text-cream uppercase transition-opacity hover:opacity-85";
 
+const secondaryButton =
+  "flex h-12 w-full items-center justify-center rounded-full border border-charcoal/30 px-8 text-[0.7rem] tracking-label uppercase transition-colors hover:border-charcoal";
+
 /**
- * "¡Pedido listo!" screen. The first time it shows a freshly confirmed order it empties
- * the cart and opens WhatsApp in the same tab (not a popup, so mobile browsers allow it
- * even though it happens after the checkout's await). Coming back to it never repeats
- * either; "Abrir WhatsApp de nuevo" is a regular link for when it did not open.
+ * "¡Pedido listo!" screen. Checkout already opened WhatsApp in a new tab; this tab
+ * stays here. The first time it shows a freshly confirmed order it empties the cart
+ * (never again on a reload). When the browser blocked the new tab, "Abrir WhatsApp"
+ * is the main action; otherwise it is there to open it again.
  */
 export function OrderConfirmation() {
   const order = usePendingOrder();
@@ -22,10 +25,7 @@ export function OrderConfirmation() {
 
   useEffect(() => {
     if (code === undefined) return;
-    const claimed = claimPendingOrder();
-    if (claimed === null) return;
-    clearCart();
-    window.location.assign(claimed.whatsappUrl);
+    if (claimPendingOrder() !== null) clearCart();
   }, [code, clearCart]);
 
   if (order === undefined) {
@@ -64,17 +64,19 @@ export function OrderConfirmation() {
         Guardalo para consultar por tu pedido por WhatsApp.
       </p>
       <p className="mt-2 text-sm leading-relaxed text-charcoal/80">
-        Abrimos WhatsApp con tu pedido. Enviá el mensaje y te confirmamos stock, pago y
-        entrega por ahí.
+        {order.opened
+          ? "Abrimos WhatsApp en una pestaña nueva con tu pedido."
+          : "Tocá el botón para abrir WhatsApp con tu pedido."}{" "}
+        Enviá el mensaje y te confirmamos stock, pago y entrega por ahí.
       </p>
       <div className="mt-4 flex w-full flex-col items-center gap-4 sm:max-w-xs">
         <a
           href={order.whatsappUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className={primaryButton}
+          className={order.opened ? secondaryButton : primaryButton}
         >
-          Abrir WhatsApp de nuevo
+          {order.opened ? "Abrir WhatsApp de nuevo" : "Abrir WhatsApp"}
         </a>
         <Link
           href="/"
