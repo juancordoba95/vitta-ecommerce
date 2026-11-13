@@ -460,7 +460,48 @@ Route handlers (same origin as the front, not the backend):
 
 **Not indexed**: `app/admin/layout.tsx` sets `robots: { index: false, follow: false }` for the whole `/admin` tree (login included). There is no sitemap.
 
+### Admin panel screens (M4.4)
+
+Code: `frontend/src/app/admin/(panel)/productos/`, `frontend/src/app/admin/(panel)/categorias/`, `frontend/src/components/admin/`, `frontend/src/lib/admin/admin-types.ts`, `frontend/src/lib/admin/admin-api.ts`.
+
+All admin mutations use **Server Actions** (`"use server"`) that call `adminFetch`, revalidate the catalog with `updateTag("catalog")` (Next.js 16 `updateTag` for read-your-own-writes in actions) and return `{ success, data } | { success: false, error }` for client error display.
+
+#### Screens
+
+| Route | Description |
+| --- | --- |
+| `/admin/productos` | Paginated list (20/page) with text search (`q`), category filter and URL-driven pagination. Each row: thumbnail, name (link), price (ARS), category and status badge (Publicado/Oculto). Mobile: card list; desktop: table. |
+| `/admin/productos/nuevo` | Create form (name, description, price, category, slug optional). Creates inactive; redirects to the edit page on success via `createProductAction`. |
+| `/admin/productos/[id]` | Edit page with four sections: **Publicación** (toggle with stock/image warnings), **Datos** (full edit form, inline save), **Talles y stock** (add, quick-edit stock per row, delete with inline confirm), **Fotos** (upload, reorder ↑/↓, delete with inline confirm, cover badge on position 0). |
+| `/admin/categorias` | Full list with inline create and edit forms (name, slug optional). No delete (by spec). |
+
+#### Image upload flow
+
+1. User selects one or more files in the browser.
+2. Each file is resized client-side with the Canvas API: max 1600 px on the longest side, exported as JPEG at quality 0.85 (no extra dependencies).
+3. Each resized blob is POSTed one at a time to `POST /api/admin/images/[productId]` (a Next.js Route Handler at `app/api/admin/images/[productId]/route.ts`).
+4. The route handler reads the JWT from the `vitta_admin` cookie, forwards the file to the backend at `POST /api/admin/products/{id}/images` as `multipart/form-data` with field `files`, and returns the gallery response (or the error).
+5. The `ImageManager` client component updates its local images state from the gallery returned by each upload.
+6. Reorder (↑/↓) calls the `reorderImages` server action → `PUT …/images/order`; the backend returns the updated gallery.
+7. Delete calls the `deleteImage` server action → `DELETE /api/admin/images/{id}`; the client re-indexes positions locally.
+
+#### Error messages (Spanish)
+
+| Backend status | UI message |
+| --- | --- |
+| `409` slug conflict | "Ya existe un producto/categoría con esa URL." |
+| `409` size duplicate | "Ya existe un talle con ese nombre." |
+| `409` image limit (8) | "El producto ya tiene el máximo de fotos permitidas (8)." |
+| `413` file too large | "La imagen supera los 5 MB." |
+| `401` from any action | Redirect to `/api/session/expired` → login |
+
+#### `next.config.ts` image domains
+
+`remotePatterns` includes `res.cloudinary.com` and the backend host extracted from `NEXT_PUBLIC_API_URL` at build time, so `next/image` can optimize both Cloudinary and local-storage URLs.
+
 ## Changelog
+
+- **2026-11-13**: Mission 4.4: admin panel screens — `/admin/productos` list with search/filter/pagination, `/admin/productos/nuevo` create form, `/admin/productos/[id]` edit page (data, variants, images, publish toggle), `/admin/categorias` list+create+edit. Client-side canvas image resize before upload; images proxied through a Next.js route handler. Errors in Spanish; catalog cache invalidated via `updateTag` after every mutation.
 
 - **2026-11-12**: Mission 4.2: admin catalog API under `/api/admin/**`: paginated product search (including inactive), product create/update (created inactive) and `PATCH …/active`, variants with size uniqueness and quick stock updates, categories (no delete), slug generation with suffixes, and product images (content-checked JPEG/PNG/WebP, 5 MB, 8 per product, reorder with cover sync, delete) stored in Cloudinary (`CLOUDINARY_URL`) or locally (`UPLOADS_DIR`, served at `/uploads/**`). `V4` adds `product_images.storage_key`.
 
