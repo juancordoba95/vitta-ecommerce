@@ -67,13 +67,13 @@ categories 1 ──< products 1 ──< product_variants
 | `categories` | `id`, `name` (100), `slug` (120) | `slug` unique |
 | `products` | `id`, `name` (150), `slug` (170), `description` (2000, nullable), `price DECIMAL(10,2)`, `category_id`, `image_url` (500, nullable), `active` (default `true`), `created_at`, `updated_at` | `slug` unique; FK to `categories`; `price >= 0` |
 | `product_variants` | `id`, `product_id`, `size` (10), `stock` (default 0) | unique `(product_id, size)`; FK to `products` (on delete cascade); `stock >= 0` |
-| `product_images` | `id`, `product_id`, `url` (500), `position` | unique `(product_id, position)`; FK to `products` (on delete cascade); `position >= 0` |
+| `product_images` | `id`, `product_id`, `url` (500), `storage_key` (300, nullable), `position` | unique `(product_id, position)`; FK to `products` (on delete cascade); `position >= 0` |
 | `admin_users` | `id`, `email` (254), `password_hash` (100, BCrypt), `created_at` | `email` unique |
 
 - A product belongs to exactly one category and has one variant per size (S, M, L for now). Stock lives on the variant.
 - Sizes are free text; the API sorts them logically, not alphabetically: letter sizes `XXS … XXXL` first, then numeric sizes ascending, then anything else alphabetically.
-- `products.image_url` is the cover used by listings; `product_images` is the ordered gallery shown in the detail (`V2` backfilled each existing cover as position `0`).
-- Inactive products (`active = false`) stay in the database but are hidden from the public catalog.
+- `products.image_url` is the cover used by listings; `product_images` is the ordered gallery shown in the detail (`V2` backfilled each existing cover as position `0`). Since Mission 4.2 the admin keeps `image_url` equal to the image at position `0` (or `null` without images). `storage_key` (`V4`) identifies the file in the image storage so it can be deleted; it is `null` for external URLs such as the dev seed.
+- Inactive products (`active = false`) stay in the database but are hidden from the public catalog (listing, detail by slug → `404`, cart validation → `NOT_FOUND`). This is the only "delete" for products (logical).
 - Prices are in ARS.
 - **Dev data**: with the `dev` profile, Flyway also loads `db/dev-data` (a repeatable, idempotent seed with 3 categories and 8 products, one of them inactive). It never runs in other environments or in tests.
 
@@ -164,9 +164,12 @@ Response, always `200` for a valid body even if some items have problems:
 ```
 
 - `404`: unknown or inactive product; unknown `category` filter.
-- `400`: invalid slug in the path or the `category` parameter; invalid cart validation or login body.
+- `400`: invalid slug in the path or the `category` parameter; invalid cart validation, login or admin body/parameters; image file that is not a JPEG/PNG/WebP; image order list that does not match the gallery.
 - `401`: wrong login credentials; missing, malformed or expired token (also any route outside the access rules below).
 - `403`: valid token without the `ADMIN` role.
+- `404`: (admin) unknown product, variant, category or image id, including a `categoryId` in a product body.
+- `409`: (admin) explicit slug already in use, repeated size in a product, more than 8 images per product.
+- `413`: image file over 5 MB (or a multipart request over 45 MB).
 - `429`: too many failed logins (with `Retry-After`).
 - `500`: unexpected error (generic message; details are only logged).
 
@@ -198,7 +201,7 @@ Stateless JWT (HS256, signed with `JWT_SECRET`) for the admin panel. No sessions
 
 | Rule | Paths |
 | --- | --- |
-| Public | `GET /api/products/**`, `GET /api/categories/**`, `POST /api/cart/validate`, `POST /api/auth/login`, `GET /actuator/health/**` |
+| Public | `GET /api/products/**`, `GET /api/categories/**`, `POST /api/cart/validate`, `POST /api/auth/login`, `GET /actuator/health/**`, `GET /uploads/**` (local image storage) |
 | Role `ADMIN` | `/api/admin/**` |
 | Denied (`401` without token) | everything else |
 
@@ -211,6 +214,76 @@ Stateless JWT (HS256, signed with `JWT_SECRET`) for the admin panel. No sessions
 | `ADMIN_EMAIL`, `ADMIN_PASSWORD` | no | On startup, if no admin with that email exists, one is created with the BCrypt-hashed password. Existing admins are never modified. If either is missing, a warning is logged and nothing is created. |
 
 The `dev` profile (`application-dev.yaml`) has insecure placeholder defaults for `JWT_SECRET`, `ADMIN_EMAIL` (`admin@vitta.local`) and `ADMIN_PASSWORD`, so local development works without extra setup. Tests use a test-only secret in `src/test/resources/config/application.yaml`; CI needs no GitHub secrets.
+
+### Admin catalog
+
+Catalog management for the admin panel. Everything is under `/api/admin/**` (role `ADMIN`), JSON unless noted, and errors use the Problem Details above.
+
+| Method | Path | Body / params | Response |
+| --- | --- | --- | --- |
+| `GET` | `/api/admin/products` | `q` (name contains, case-insensitive, ≤ 150), `categoryId`, `page` (≥ 0, default 0), `size` (1–100, default 20) | `200` page of products, **including inactive**, sorted by name |
+| `GET` | `/api/admin/products/{id}` | | `200` detail with variants and images |
+| `POST` | `/api/admin/products` | product body | `201` detail + `Location`; created **inactive** |
+| `PUT` | `/api/admin/products/{id}` | product body | `200` detail |
+| `PATCH` | `/api/admin/products/{id}/active` | `{ "active": true }` | `200` detail (publish / logical delete) |
+| `POST` | `/api/admin/products/{id}/variants` | `{ "size", "stock" }` | `201` variant + `Location` |
+| `PUT` | `/api/admin/variants/{id}` | `{ "size", "stock" }` | `200` variant |
+| `PATCH` | `/api/admin/variants/{id}/stock` | `{ "stock" }` | `200` variant (quick stock fix) |
+| `DELETE` | `/api/admin/variants/{id}` | | `204` |
+| `GET` | `/api/admin/categories` | | `200` all categories by name |
+| `POST` | `/api/admin/categories` | `{ "name", "slug"? }` | `201` category + `Location` |
+| `PUT` | `/api/admin/categories/{id}` | `{ "name", "slug"? }` | `200` category (no delete) |
+| `POST` | `/api/admin/products/{id}/images` | `multipart/form-data`, one or more `files` parts | `201` whole gallery |
+| `PUT` | `/api/admin/products/{id}/images/order` | `{ "imageIds": [3, 1, 2] }` | `200` whole gallery |
+| `DELETE` | `/api/admin/images/{id}` | | `204` |
+
+```jsonc
+// POST /api/admin/products
+{ "name": "Conjunto Encaje Floral", "description": "Encaje negro", "price": 42900.00,
+  "categoryId": 1, "slug": "" }
+// 201 (GET /api/admin/products/{id} has the same shape)
+{ "id": 9, "name": "Conjunto Encaje Floral", "slug": "conjunto-encaje-floral", "description": "Encaje negro",
+  "price": 42900.00, "imageUrl": null, "active": false,
+  "category": { "id": 1, "name": "Conjuntos", "slug": "conjuntos" },
+  "images": [], "variants": [], "createdAt": "2026-11-12T10:00:00", "updatedAt": "2026-11-12T10:00:00" }
+
+// GET /api/admin/products?q=encaje&page=0&size=20
+{ "content": [{ "id": 9, "name": "...", "slug": "...", "price": 42900.00, "imageUrl": null,
+                "category": { "id": 1, "name": "Conjuntos", "slug": "conjuntos" }, "active": false,
+                "updatedAt": "..." }],
+  "page": 0, "size": 20, "totalElements": 1, "totalPages": 1 }
+```
+
+**Products**
+- Body: `name` required (≤ 150); `description` optional (≤ 2000, blank → `null`); `price` required, **> 0**, at most 8 integer digits and 2 decimals; `categoryId` required (unknown → `404`); `slug` optional (≤ 170, slug pattern).
+- New products start **inactive** (`active = false`) so they do not show up publicly without photos or stock; `PATCH …/active` publishes or hides them.
+- Products are never physically deleted (out of scope); `active = false` is the delete.
+
+**Slugs** (products and categories)
+- Explicit slug: must match the slug pattern; if another product/category already uses it → `409`.
+- Empty or missing slug on **create**: generated from the name (accents removed, `ñ` → `n`, lowercase, non-alphanumerics → `-`, trimmed to leave room for a suffix; fallback `producto`/`categoria`). If taken, `-2`, `-3`, … is appended.
+- Empty or missing slug on **update**: the current slug is kept, so shared links keep working.
+
+**Variants**
+- `size` required (≤ 10), stored trimmed and uppercase; unique per product, case-insensitive → `409` if repeated. `stock` required, `0`–`9999`.
+- Deleting a variant is physical; carts holding it get `NOT_FOUND` on validation.
+
+**Categories**: `name` required (≤ 100), `slug` optional (≤ 120) with the slug rules above. No delete (every product needs one).
+
+**Images**
+- Upload: JPEG, PNG or WebP only, detected from the **file content** (magic bytes), not the extension or declared content type → otherwise `400`. Max **5 MB per file** (`413`) and **8 images per product** (`409`, counting the existing ones). All files are validated before anything is stored; new images go after the existing ones.
+- Order: `imageIds` must contain every image of the product exactly once (`400` otherwise). Position `0` is the main image and is copied to `products.image_url` (the listing cover) after every upload, reorder or delete.
+- Delete: removes the row, closes the gap in positions and, after the transaction commits, deletes the file from the storage (a storage failure is only logged; the file is orphaned).
+- Multipart limits (`application.yaml`): `max-file-size: 5MB`, `max-request-size: 45MB`.
+
+**Storage** (`ImageStorage`, one implementation active):
+- **Cloudinary** when `CLOUDINARY_URL` is set: official SDK (`cloudinary-http5`), folder `vitta/products`; URL = `secure_url`, key = `public_id`.
+- **Local** otherwise: files saved as `products/<uuid>.<ext>` under `UPLOADS_DIR` (default `./uploads`, gitignored) and served publicly by the backend at `GET /uploads/**`. URLs are absolute, built from the upload request's host. Meant for development; files on a container disk are lost on redeploy.
+
+| Variable | Required | Description |
+| --- | --- | --- |
+| `CLOUDINARY_URL` | no | `cloudinary://<api_key>:<api_secret>@<cloud_name>`. If set, images go to Cloudinary. |
+| `UPLOADS_DIR` | no | Local storage directory when `CLOUDINARY_URL` is not set. Default `./uploads`. |
 
 ## Frontend
 
@@ -351,6 +424,8 @@ Tocar timbre 2B
 - Shipping cost is out of v1: it is agreed in the chat.
 
 ## Changelog
+
+- **2026-11-12**: Mission 4.2: admin catalog API under `/api/admin/**`: paginated product search (including inactive), product create/update (created inactive) and `PATCH …/active`, variants with size uniqueness and quick stock updates, categories (no delete), slug generation with suffixes, and product images (content-checked JPEG/PNG/WebP, 5 MB, 8 per product, reorder with cover sync, delete) stored in Cloudinary (`CLOUDINARY_URL`) or locally (`UPLOADS_DIR`, served at `/uploads/**`). `V4` adds `product_images.storage_key`.
 
 - **2026-11-12**: Mission 4.1: admin auth with stateless JWT (HS256): `admin_users` table (`V3`), admin bootstrap from `ADMIN_EMAIL`/`ADMIN_PASSWORD`, `POST /api/auth/login` with per-IP rate limit, `GET /api/admin/me`, deny-by-default access rules, 401/403/429 as Problem Details, CORS moved into the security chain (adds `PUT`/`PATCH`/`DELETE` and `Authorization`).
 
