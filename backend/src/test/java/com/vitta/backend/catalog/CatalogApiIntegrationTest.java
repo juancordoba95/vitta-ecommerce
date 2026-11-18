@@ -50,6 +50,9 @@ class CatalogApiIntegrationTest {
 
 	@BeforeEach
 	void setUp() {
+		productRepository.deleteAllInBatch();
+		categoryRepository.deleteAllInBatch();
+
 		Category conjuntos = categoryRepository.save(new Category("Conjuntos", "conjuntos"));
 		Category bodies = categoryRepository.save(new Category("Bodies", "bodies"));
 

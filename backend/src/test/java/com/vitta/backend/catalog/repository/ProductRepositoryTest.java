@@ -42,6 +42,9 @@ class ProductRepositoryTest {
 
 	@BeforeEach
 	void setUp() {
+		productRepository.deleteAllInBatch();
+		categoryRepository.deleteAllInBatch();
+
 		Category conjuntos = categoryRepository.save(new Category("Conjuntos", "conjuntos"));
 
 		Product encaje = new Product("Conjunto Encaje", "conjunto-encaje", "Encaje negro", new BigDecimal("42900.00"),

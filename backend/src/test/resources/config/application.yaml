@@ -3,3 +3,9 @@ app:
   security:
     jwt:
       secret: test-only-jwt-secret-not-used-anywhere-else-0123456789
+
+# Prevent the dev profile (loaded via backend/.env locally) from adding dev-data seed
+# migrations that would pre-populate the test container and cause duplicate-key errors.
+spring:
+  flyway:
+    locations: classpath:db/migration

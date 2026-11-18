@@ -1,5 +1,7 @@
 package com.vitta.backend;
 
+import java.time.Duration;
+
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Bean;
@@ -12,7 +14,8 @@ public class TestcontainersConfiguration {
 	@Bean
 	@ServiceConnection
 	MySQLContainer mysqlContainer() {
-		return new MySQLContainer(DockerImageName.parse("mysql:8.4"));
+		return new MySQLContainer(DockerImageName.parse("mysql:8.4"))
+				.withStartupTimeout(Duration.ofMinutes(3));
 	}
 
 }
