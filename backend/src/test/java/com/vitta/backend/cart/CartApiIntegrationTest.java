@@ -63,6 +63,9 @@ class CartApiIntegrationTest {
 
 	@BeforeEach
 	void setUp() {
+		productRepository.deleteAllInBatch();
+		categoryRepository.deleteAllInBatch();
+
 		Category conjuntos = categoryRepository.save(new Category("Conjuntos", "conjuntos"));
 		Product encaje = new Product("Conjunto Encaje", "conjunto-encaje", null, new BigDecimal("42900.00"), conjuntos,
 				null, true);
