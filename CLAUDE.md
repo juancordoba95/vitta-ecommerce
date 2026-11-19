@@ -12,6 +12,8 @@ Ecommerce for Vitta (lingerie and accessories). Monorepo:
 - `./mvnw -B -DskipTests verify` — compile everything (including tests) without Docker.
 - `./mvnw -B verify "-Dtest=!*IntegrationTest,!BackendApplicationTests,!*RepositoryTest,!*MigrationTest" -Dsurefire.failIfNoSpecifiedTests=false` — run the tests that don't need Docker (unit + `@WebMvcTest` slices, including security).
 - Credentials live in `backend/.env` (gitignored); template in `backend/.env.example`. Variables: `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`, `SPRING_PROFILES_ACTIVE`, `FRONTEND_URL`, `JWT_SECRET` (≥ 32 bytes, required outside `dev`), `JWT_EXPIRATION` (default `8h`), `ADMIN_EMAIL`/`ADMIN_PASSWORD` (optional admin bootstrap), `CLOUDINARY_URL` (optional; if set, product images go to Cloudinary) and `UPLOADS_DIR` (local image storage when there is no Cloudinary, default `./uploads`, gitignored). The `dev` profile has placeholder defaults for the JWT/admin ones; tests use a test-only secret in `src/test/resources/config/application.yaml`.
+- `PORT` (default `8080`) sets the HTTP port.
+- Production: `prod` profile (`application-prod.yaml`, `SPRING_PROFILES_ACTIVE=prod`) for Render + Aiven + Cloudinary. It takes the datasource only from env vars, runs only `db/migration` (never the dev seed), requires `CLOUDINARY_URL` and `FRONTEND_URL`, and fails if combined with `dev`. Docker image: `backend/Dockerfile` (no tests in the image build) + `.dockerignore` (keeps `.env` out). Runbook, env vars and local image test commands: `docs/deploy.md`.
 - Security: `common/security/SecurityConfig` (stateless JWT, deny by default, CORS). New `@WebMvcTest` slices must `@Import(SecurityConfig.class)` and new public endpoints must be added to its allow-list.
 
 ## Frontend commands (run from `/frontend`)
@@ -28,7 +30,7 @@ Ecommerce for Vitta (lingerie and accessories). Monorepo:
 
 - Single workflow `.github/workflows/ci.yml`, runs on PRs to `main` and pushes to `main`.
 - `changes` (dorny/paths-filter) decides what runs: `backend/**` → `backend` job, `frontend/**` → `frontend` job; changes in `.github/workflows/**` trigger both.
-- `backend`: Temurin 21 + Maven cache, `./mvnw -B verify` (Testcontainers works on the GitHub runner's Docker).
+- `backend`: Temurin 21 + Maven cache, `./mvnw -B verify` (Testcontainers works on the GitHub runner's Docker), then `docker build` of the backend image (validation only, no push).
 - `frontend`: Node 22 + npm cache, `npm ci`, `lint`, `typecheck`, `build`.
 - `ci`: aggregate gate, the only required check on `main`. Fails if any job failed or was cancelled; skipped jobs count as OK.
 

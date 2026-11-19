@@ -20,6 +20,10 @@ spring:
       max-file-size: 5MB
       max-request-size: 45MB
 
+server:
+  # Render (and similar hosts) inject PORT.
+  port: ${PORT:8080}
+
 app:
   cors:
     allowed-origin: ${FRONTEND_URL:http://localhost:3000}

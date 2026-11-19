@@ -1,0 +1,31 @@
+# Secrets: the local .env must never end up in the image.
+.env
+.env.*
+**/.env
+**/.env.*
+
+# Build output and local data
+target/
+uploads/
+HELP.md
+
+# IDE / editor files
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+.settings/
+.project
+.classpath
+.factorypath
+.apt_generated
+.springBeans
+.sts4-cache
+
+# VCS and Docker files
+.git
+.gitignore
+.gitattributes
+Dockerfile
+.dockerignore

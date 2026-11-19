@@ -40,18 +40,19 @@ public class AuthService {
 	}
 
 	@Transactional(readOnly = true)
-	public LoginResponse login(LoginRequest request, String clientKey) {
-		loginAttemptLimiter.checkAllowed(clientKey);
+	public LoginResponse login(LoginRequest request, String clientIp) {
+		String email = EmailNormalizer.normalize(request.email());
+		loginAttemptLimiter.checkAllowed(clientIp, email);
 
-		Optional<AdminUser> admin = adminUserRepository.findByEmail(EmailNormalizer.normalize(request.email()));
+		Optional<AdminUser> admin = adminUserRepository.findByEmail(email);
 		String hash = admin.map(AdminUser::getPasswordHash).orElse(dummyHash);
 		boolean passwordMatches = matches(request.password(), hash);
 
 		if (admin.isEmpty() || !passwordMatches) {
-			loginAttemptLimiter.recordFailure(clientKey);
+			loginAttemptLimiter.recordFailure(clientIp, email);
 			throw new InvalidCredentialsException();
 		}
-		loginAttemptLimiter.reset(clientKey);
+		loginAttemptLimiter.reset(email);
 		return jwtTokenService.issueAdminToken(admin.get().getEmail());
 	}
 

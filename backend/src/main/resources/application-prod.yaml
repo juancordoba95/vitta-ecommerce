@@ -1,0 +1,45 @@
+# Production profile (Render + Aiven MySQL + Cloudinary): activate with SPRING_PROFILES_ACTIVE=prod.
+# Every value comes from real environment variables; see docs/deploy.md. No defaults here on purpose:
+# a missing required variable fails startup.
+spring:
+  datasource:
+    # Aiven requires TLS, e.g. jdbc:mysql://<host>:<port>/defaultdb?sslMode=REQUIRED
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    hikari:
+      # Free-tier databases allow few connections.
+      maximum-pool-size: 5
+      minimum-idle: 1
+  flyway:
+    # Schema migrations only: the dev seed (db/dev-data) must never run in production.
+    locations: classpath:db/migration
+  jpa:
+    show-sql: false
+
+server:
+  # Behind Render's proxy: Tomcat's RemoteIpValve takes the client address from the right-most
+  # X-Forwarded-For entry that is not a trusted internal proxy, so it cannot be spoofed by clients.
+  forward-headers-strategy: native
+  error:
+    include-message: never
+    include-stacktrace: never
+    include-binding-errors: never
+
+management:
+  endpoint:
+    health:
+      show-details: never
+
+logging:
+  level:
+    org.hibernate.SQL: warn
+    org.hibernate.orm.jdbc.bind: warn
+
+app:
+  cors:
+    # Required in production: the frontend origin, e.g. https://<site>.netlify.app
+    allowed-origin: ${FRONTEND_URL}
+  storage:
+    # Render's disk is not persistent: refuse to start without CLOUDINARY_URL.
+    require-cloudinary: true

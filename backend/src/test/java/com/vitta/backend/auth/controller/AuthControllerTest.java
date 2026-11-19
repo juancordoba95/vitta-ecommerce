@@ -156,19 +156,26 @@ class AuthControllerTest {
 
 	@Test
 	void blocksLoginAfterTooManyFailures() throws Exception {
-		for (int i = 0; i < LoginAttemptLimiter.MAX_FAILURES; i++) {
-			login(EMAIL, "wrong-password").andExpect(status().isUnauthorized());
+		// A dedicated account, so the locked email does not leak into other tests.
+		String lockedEmail = "locked@vitta.test";
+		AdminUser lockedAdmin = new AdminUser(lockedEmail, passwordEncoder.encode(PASSWORD));
+		given(adminUserRepository.findByEmail(lockedEmail)).willReturn(Optional.of(lockedAdmin));
+		for (int i = 0; i < LoginAttemptLimiter.MAX_FAILURES_PER_EMAIL; i++) {
+			login(lockedEmail, "wrong-password").andExpect(status().isUnauthorized());
 		}
 
 		// Even the right password is rejected until the window ends.
-		login(EMAIL, PASSWORD).andExpect(status().isTooManyRequests())
+		login(lockedEmail, PASSWORD).andExpect(status().isTooManyRequests())
 			.andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
 			.andExpect(jsonPath("$.status").value(429))
 			.andExpect(jsonPath("$.title").value("Too many login attempts"))
 			.andExpect(header().exists(HttpHeaders.RETRY_AFTER));
 
-		// Other clients are not affected.
+		// The account stays locked from another address (e.g. a shared proxy IP does not matter)...
 		clientIp = "10.0.1." + NEXT_IP.getAndIncrement();
+		login(lockedEmail, PASSWORD).andExpect(status().isTooManyRequests());
+
+		// ...while other accounts behind the same address are not affected.
 		login(EMAIL, PASSWORD).andExpect(status().isOk());
 	}
 

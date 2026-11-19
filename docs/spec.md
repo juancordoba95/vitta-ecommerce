@@ -19,7 +19,7 @@ An online store for **Vitta**, a lingerie and accessories brand that currently s
 - **Admin panel** with JWT login:
   - Create, edit and delete products.
   - Manage categories, images, prices and stock.
-- **Deploy**: frontend on Vercel; backend and MySQL in the cloud.
+- **Deploy**: frontend on Netlify; backend on Render (Docker), MySQL on Aiven, images on Cloudinary.
 
 ## Out of v1
 
@@ -40,7 +40,7 @@ Monorepo:
 - **`/frontend`**: Next.js 16.4.6 (App Router, `src/`, alias `@/*`), React 19, TypeScript, Tailwind CSS 4, ESLint 9, npm, Node 22.
 
 ```
-Customer / Admin ──> Next.js (Vercel) ──REST──> Spring Boot API (cloud) ──> MySQL 8 (cloud)
+Customer / Admin ──> Next.js (Netlify) ──REST──> Spring Boot API (Render) ──> MySQL 8 (Aiven)
 Customer checkout ──> WhatsApp link with the pre-filled order (built on the frontend)
 ```
 
@@ -52,6 +52,7 @@ Customer checkout ──> WhatsApp link with the pre-filled order (built on the 
 - **CI with a single aggregate check**: one GitHub Actions workflow with path filters (backend/frontend). The `ci` job aggregates results (skipped jobs count as OK) and is the only required status check.
 - **Ruleset on `main`**: no direct pushes; changes land through PRs that must pass `ci`, reviewed and merged by the owner.
 - **Public repo, no credentials**: secrets live in gitignored `.env` files; only `.env.example` templates are committed.
+- **Production backend**: Docker image (`backend/Dockerfile`, multi-stage, JRE, non-root) on Render Free, Aiven MySQL over TLS, Cloudinary for images. The `prod` profile (`application-prod.yaml`) takes everything from env vars, runs only schema migrations (never the dev seed), caps the pool at 5 connections, requires `CLOUDINARY_URL` and `FRONTEND_URL`, and refuses to start together with `dev`. Health check: `GET /actuator/health`. Runbook and variables in `docs/deploy.md`.
 
 ## Domain model
 
@@ -193,7 +194,7 @@ Stateless JWT (HS256, signed with `JWT_SECRET`) for the admin panel. No sessions
 
 - Login body: `email` required, valid email, ≤ 254 chars (matched case-insensitively); `password` required, ≤ 72 chars (BCrypt limit). Violations → `400`.
 - Wrong password and unknown email return the same `401` (`"Invalid email or password"`), and both run a BCrypt check so timing does not reveal which accounts exist.
-- **Rate limit**: in memory, per client IP (`remoteAddr`): after 5 failed logins within a 1-minute window, further attempts get `429` (even with the right password) until the window ends. A successful login resets the counter. Behind a reverse proxy, `server.forward-headers-strategy` must be set so `remoteAddr` is the real client IP.
+- **Rate limit**: in memory, fixed 1-minute windows keyed by both the normalized email and the client IP (`remoteAddr`). After 5 failed logins for an email (from any address), or 30 failed logins from one IP (across emails), further attempts get `429` (even with the right password) until the window ends. A successful login resets the email counter. The IP cap is higher because in production the login is proxied by the Next.js server, so many users share its address. The `prod` profile sets `server.forward-headers-strategy=native` so `remoteAddr` comes from Render's proxy headers (see `docs/deploy.md`).
 - Token claims: `iss` = `vitta-backend`, `sub` = admin email, `roles` = `["ADMIN"]`, `iat`, `exp` (`JWT_EXPIRATION`, default 8h). Send it as `Authorization: Bearer <token>`.
 - Passwords are stored as BCrypt hashes in `admin_users` (`V3`); the table has no seed data.
 
@@ -500,6 +501,8 @@ All admin mutations use **Server Actions** (`"use server"`) that call `adminFetc
 `remotePatterns` includes `res.cloudinary.com` and the backend host extracted from `NEXT_PUBLIC_API_URL` at build time, so `next/image` can optimize both Cloudinary and local-storage URLs.
 
 ## Changelog
+
+- **2026-11-19**: Mission 5.1: production-ready backend — multi-stage `Dockerfile` + `.dockerignore`, `server.port=${PORT:8080}`, `prod` profile (env-only datasource with Aiven TLS, pool of 5, schema-only Flyway, `forward-headers-strategy=native`, required `CLOUDINARY_URL`/`FRONTEND_URL`, no error details in responses), guard against `prod`+`dev`, login rate limit keyed by email and IP, CI builds the Docker image, `docs/deploy.md` runbook.
 
 - **2026-11-13**: Mission 4.4: admin panel screens — `/admin/productos` list with search/filter/pagination, `/admin/productos/nuevo` create form, `/admin/productos/[id]` edit page (data, variants, images, publish toggle), `/admin/categorias` list+create+edit. Client-side canvas image resize before upload; images proxied through a Next.js route handler. Errors in Spanish; catalog cache invalidated via `updateTag` after every mutation.
 
