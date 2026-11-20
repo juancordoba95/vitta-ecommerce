@@ -1,4 +1,4 @@
-export { ApiError, apiGet, apiPost } from "./client";
+export { ApiError } from "./errors";
 export { validateCart } from "./cart";
 export {
   CATALOG_CACHE_TAG,

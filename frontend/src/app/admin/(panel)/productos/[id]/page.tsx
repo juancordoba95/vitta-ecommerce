@@ -4,7 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { AdminUnauthorizedError } from "@/lib/admin/admin-fetch";
 import { SESSION_EXPIRED_PATH } from "@/lib/admin/auth";
 import { getAdminProduct, getAdminCategories } from "@/lib/admin/admin-api";
-import { ApiError } from "@/lib/api/client";
+import { ApiError } from "@/lib/api/errors";
 import { ProductForm } from "@/components/admin/product-form";
 import { VariantManager } from "@/components/admin/variant-manager";
 import { ImageManager } from "@/components/admin/image-manager";
@@ -28,14 +28,7 @@ export default async function EditProductPage({ params }: Props) {
   } catch (error) {
     if (error instanceof AdminUnauthorizedError) redirect(SESSION_EXPIRED_PATH);
     if (error instanceof ApiError && error.status === 404) notFound();
-    return (
-      <section className="flex flex-col gap-6">
-        <BackLink />
-        <p className="rounded-soft border border-charcoal/10 px-5 py-8 text-center text-sm text-charcoal/70">
-          No pudimos cargar el producto. Recargá la página.
-        </p>
-      </section>
-    );
+    throw error; // backend down: app/admin/error.tsx offers a retry
   }
 
   const hasImages = product.images.length > 0;

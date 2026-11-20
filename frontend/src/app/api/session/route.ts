@@ -1,4 +1,4 @@
-import { BACKEND_TIMEOUT_MS, backendUrl } from "@/lib/admin/backend";
+import { BACKEND_TIMEOUT_MS, backendUrl } from "@/lib/api/backend";
 import { clearAdminCookie, setAdminCookie } from "@/lib/admin/session";
 
 /** What the browser gets back: never the token itself. */

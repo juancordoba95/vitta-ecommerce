@@ -13,14 +13,7 @@ export default async function AdminCategoriesPage() {
     categories = await getAdminCategories();
   } catch (error) {
     if (error instanceof AdminUnauthorizedError) redirect(SESSION_EXPIRED_PATH);
-    return (
-      <section className="flex flex-col gap-4">
-        <h1 className="text-xs font-normal tracking-title uppercase">Categorías</h1>
-        <p className="rounded-soft border border-charcoal/10 px-5 py-8 text-center text-sm text-charcoal/70">
-          No pudimos cargar las categorías. Recargá la página.
-        </p>
-      </section>
-    );
+    throw error; // backend down: app/admin/error.tsx offers a retry
   }
 
   return (
