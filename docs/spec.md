@@ -447,7 +447,7 @@ Route handlers (same origin as the front, not the backend):
 | `DELETE` | `/api/session` | Logout: deletes the cookie, `204`. |
 | `GET` | `/api/session/expired` | Deletes the cookie and `303` redirects to `/admin/login`. Used by the panel layout when the token is rejected (Server Components can't delete cookies). |
 
-- **Backend URL**: the server reuses `NEXT_PUBLIC_API_URL` (no extra variable); it must be reachable from the Next server.
+- **Backend URL**: `BACKEND_URL` (server-only, required in production; a missing value raises a clear `ApiError`). The browser never calls the backend: cart validation goes through the `/api/cart/validate` route handler.
 - **`adminFetch(path, { method, body })`** (`lib/admin/admin-fetch.ts`, server-only): calls the backend with `Authorization: Bearer <cookie>` and parses the JSON. Throws `AdminUnauthorizedError` when there is no cookie or on `401`/`403`, `ApiError` otherwise. For the admin screens (M4.4), from Server Components, Server Functions or Route Handlers only.
 - **Rate limit**: logins now reach the backend from the Next server's IP, so the per-IP limit (5 failures/minute) is shared by every admin login attempt. Acceptable with a single admin.
 
@@ -498,9 +498,11 @@ All admin mutations use **Server Actions** (`"use server"`) that call `adminFetc
 
 #### `next.config.ts` image domains
 
-`remotePatterns` includes `res.cloudinary.com` and the backend host extracted from `NEXT_PUBLIC_API_URL` at build time, so `next/image` can optimize both Cloudinary and local-storage URLs.
+`remotePatterns` includes `res.cloudinary.com`; the backend host (from `BACKEND_URL`, path `/uploads/**`) is whitelisted only in development, for local storage.
 
 ## Changelog
+
+- **2026-11-20**: Mission 5.2: frontend ready for Netlify Free — `netlify.toml` (base `frontend`, Node 22, no plugin), `NEXT_PUBLIC_API_URL` replaced by server-only `BACKEND_URL` (clear error if missing) with a same-origin `/api/cart/validate` proxy, Cloudinary-only image patterns in production, session cookie cleared with the same attributes it is set with, 8 s backend timeout and a "La tienda está despertando" retry screen (`error.tsx`) for Render cold starts.
 
 - **2026-11-19**: Mission 5.1: production-ready backend — multi-stage `Dockerfile` + `.dockerignore`, `server.port=${PORT:8080}`, `prod` profile (env-only datasource with Aiven TLS, pool of 5, schema-only Flyway, `forward-headers-strategy=native`, required `CLOUDINARY_URL`/`FRONTEND_URL`, no error details in responses), guard against `prod`+`dev`, login rate limit keyed by email and IP, CI builds the Docker image, `docs/deploy.md` runbook.
 

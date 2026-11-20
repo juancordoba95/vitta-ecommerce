@@ -92,3 +92,48 @@ docker network rm vitta-net
 The MySQL 8.4 image generates a self-signed certificate, so `sslMode=REQUIRED` works locally too, the same as with Aiven.
 
 CI builds the image on every backend change (`docker build`, no push) to validate the Dockerfile.
+
+# Deploy — frontend (Netlify)
+
+The frontend (Next.js 16, App Router) runs on **Netlify** (Free plan). Netlify detects Next.js and installs its adapter/runtime automatically, so `netlify.toml` declares no plugin. Do not pin the adapter version.
+
+## Netlify settings
+
+The repo-root `netlify.toml` already carries them; create the site from this GitHub repo and check:
+
+| Setting | Value |
+| --- | --- |
+| Base directory | `frontend` |
+| Build command | `npm run build` |
+| Publish directory | empty (handled by the Next.js adapter) |
+| Node | `22` (`NODE_VERSION` in `netlify.toml`, same as CI) |
+
+### Environment variables
+
+Set them in Netlify → Site configuration → Environment variables. Never commit real values.
+
+| Variable | Required | Description |
+| --- | --- | --- |
+| `BACKEND_URL` | yes | Base URL of the Render backend, no trailing slash. **Server-only**: no `NEXT_PUBLIC_` prefix, so it never reaches the browser, which only talks to this site (route handlers under `/api`). If missing, the server fails with an explicit "BACKEND_URL is not set" error. |
+| `NEXT_PUBLIC_WHATSAPP_NUMBER` | yes | Store number that receives orders, international format without `+`, spaces or dashes. Inlined at build time: redeploy after changing it. |
+
+On the backend, set `FRONTEND_URL` to the final Netlify URL. The browser never calls the backend, so CORS is not exercised by this site, but keep it correct.
+
+## Images
+
+Production images come from Cloudinary (`https://res.cloudinary.com/**`, whitelisted in `next.config.ts`). The local storage of the backend (`/uploads/**`) is whitelisted only in development.
+
+## Admin session cookie
+
+`vitta_admin` is `httpOnly`, `sameSite=lax`, `path=/` and `secure` when `NODE_ENV=production` (always the case on Netlify, which serves HTTPS). Logout and the expired-session route clear it with the same attributes. `proxy.ts` only checks that the cookie exists. Locally (`next dev`, plain http) `secure` is off.
+
+## Render cold start
+
+Render Free sleeps the backend after 15 minutes without traffic; the first request takes ~50 s. Netlify's docs list **60 s** for synchronous functions, but forum reports mention accounts with shorter limits (26–30 s), so we do not rely on it:
+
+- every server-side call to the backend times out after **8 s** (`BACKEND_TIMEOUT_MS` in `src/lib/api/backend.ts`); the request still wakes Render up;
+- store and admin pages catch that failure in an `error.tsx` boundary and show "La tienda está despertando, reintentá en unos segundos" with a **Reintentar** button, instead of a 500;
+- catalog data is cached for minutes (`use cache`), so mostly the first visitor after the sleep sees that screen;
+- cart validation (browser → `/api/cart/validate` → backend) fails after 8 s into the cart's existing error/retry state.
+
+Not implemented (option): an external keep-alive ping (e.g. a free uptime monitor hitting `/actuator/health` every ~10 min) would avoid the sleep, at the cost of consuming Render's free instance hours.
