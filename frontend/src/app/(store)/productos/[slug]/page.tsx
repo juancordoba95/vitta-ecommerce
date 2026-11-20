@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { BackToCatalogLink } from "@/components/back-to-catalog-link";
-import { CatalogMessage } from "@/components/catalog/catalog-message";
 import { ProductDetail } from "@/components/product/product-detail";
 import { ProductDetailSkeleton } from "@/components/product/product-detail-skeleton";
 import { getProduct, isValidSlug } from "@/lib/api";
@@ -13,21 +12,18 @@ const MAX_DESCRIPTION_LENGTH = 160;
 
 type LoadResult =
   | { status: "found"; product: Product }
-  | { status: "not-found" }
-  | { status: "error" };
+  | { status: "not-found" };
 
-/** Loads the product without throwing: API failures are logged and reported as "error". */
+/**
+ * Loads the product. A missing or inactive product is "not-found"; any other API failure
+ * (backend asleep, timeout) is thrown so app/(store)/error.tsx can offer a retry.
+ */
 async function loadProduct(slug: string): Promise<LoadResult> {
   if (!isValidSlug(slug)) return { status: "not-found" };
-  try {
-    const product = await getProduct(slug);
-    return product === null
-      ? { status: "not-found" }
-      : { status: "found", product };
-  } catch (error) {
-    console.error("[product] API request failed:", error);
-    return { status: "error" };
-  }
+  const product = await getProduct(slug);
+  return product === null
+    ? { status: "not-found" }
+    : { status: "found", product };
 }
 
 function truncate(text: string, maxLength: number): string {
@@ -40,8 +36,10 @@ export async function generateMetadata({
   params,
 }: PageProps<"/productos/[slug]">): Promise<Metadata> {
   const { slug } = await params;
-  const result = await loadProduct(slug);
-  if (result.status !== "found") {
+  // Metadata is optional: if the backend is down, fall back to the default title and let
+  // the page itself surface the error.
+  const result = await loadProduct(slug).catch(() => null);
+  if (result?.status !== "found") {
     return { title: SITE_NAME };
   }
 
@@ -96,15 +94,6 @@ async function ProductContent({ slug }: { slug: string }) {
   const result = await loadProduct(slug);
 
   if (result.status === "not-found") notFound();
-  if (result.status === "error") {
-    return (
-      <CatalogMessage
-        title="No pudimos cargar este producto"
-        description="Estamos acomodando la vidriera. Volvé en un ratito 🤍"
-        showAllLink
-      />
-    );
-  }
 
   return <ProductDetail product={result.product} />;
 }
