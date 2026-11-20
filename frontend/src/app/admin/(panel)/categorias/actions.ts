@@ -4,7 +4,7 @@ import { revalidatePath, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { adminFetch, AdminUnauthorizedError } from "@/lib/admin/admin-fetch";
 import { SESSION_EXPIRED_PATH } from "@/lib/admin/auth";
-import { ApiError } from "@/lib/api/client";
+import { ApiError } from "@/lib/api/errors";
 import { CATALOG_CACHE_TAG } from "@/lib/api/catalog";
 import type { AdminCategory } from "@/lib/admin/admin-types";
 

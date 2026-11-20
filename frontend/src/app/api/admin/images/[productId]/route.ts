@@ -1,4 +1,4 @@
-import { backendUrl } from "@/lib/admin/backend";
+import { backendUrl } from "@/lib/api/backend";
 import { getAdminToken } from "@/lib/admin/session";
 import type { NextRequest } from "next/server";
 

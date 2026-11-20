@@ -1,17 +1,7 @@
+import "server-only";
+import { BACKEND_TIMEOUT_MS, backendUrl } from "./backend";
+import { ApiError } from "./errors";
 import type { ProblemDetail } from "./types";
-
-const REQUEST_TIMEOUT_MS = 5000;
-
-export class ApiError extends Error {
-  constructor(
-    message: string,
-    readonly status?: number,
-    options?: ErrorOptions,
-  ) {
-    super(message, options);
-    this.name = "ApiError";
-  }
-}
 
 type QueryParams = Record<string, string | undefined>;
 
@@ -24,7 +14,7 @@ type RequestOptions = {
 };
 
 /**
- * Sends a request to the backend API at NEXT_PUBLIC_API_URL and parses the JSON response.
+ * Sends a request to the backend API (BACKEND_URL) from the Next server and parses the JSON response.
  * Throws {@link ApiError} on missing configuration, network failures, timeouts and
  * non-2xx responses. An abort through `signal` rethrows the original AbortError.
  */
@@ -33,17 +23,12 @@ async function apiRequest<T>(
   path: string,
   { query, body, signal }: RequestOptions = {},
 ): Promise<T> {
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL;
-  if (!baseUrl) {
-    throw new ApiError("NEXT_PUBLIC_API_URL is not set");
-  }
-
-  const url = new URL(path, baseUrl);
+  const url = backendUrl(path);
   for (const [key, value] of Object.entries(query ?? {})) {
     if (value !== undefined) url.searchParams.set(key, value);
   }
 
-  const timeout = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
+  const timeout = AbortSignal.timeout(BACKEND_TIMEOUT_MS);
   let response: Response;
   try {
     response = await fetch(url, {

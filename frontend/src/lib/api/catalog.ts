@@ -1,5 +1,6 @@
 import { cacheLife, cacheTag } from "next/cache";
-import { ApiError, apiGet } from "./client";
+import { apiGet } from "./client";
+import { ApiError } from "./errors";
 import type { Category, ProductDetail, ProductSummary } from "./types";
 
 /** Cache tag for catalog data; revalidate it when the admin changes the catalog. */

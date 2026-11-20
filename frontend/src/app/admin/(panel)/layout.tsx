@@ -1,7 +1,6 @@
 import { Suspense, type ReactNode } from "react";
 import { AdminAccount, AdminShell } from "@/components/admin/admin-shell";
 import { getAdmin, type Admin } from "@/lib/admin/auth";
-import { ApiError } from "@/lib/api/client";
 
 /**
  * Protected admin section. The proxy already sent visitors without a cookie to the
@@ -17,14 +16,8 @@ export default function AdminPanelLayout({ children }: LayoutProps<"/admin">) {
 }
 
 async function AdminSession({ children }: { children: ReactNode }) {
-  let admin: Admin;
-  try {
-    admin = await getAdmin(); // redirects to the login on 401/403
-  } catch (error) {
-    if (!(error instanceof ApiError)) throw error;
-    console.error("[admin] could not validate the session:", error);
-    return <BackendUnavailable />;
-  }
+  // Backend failures (ApiError) propagate to app/admin/error.tsx, which offers a retry.
+  const admin: Admin = await getAdmin(); // redirects to the login on 401/403
 
   return <AdminShell account={<AdminAccount email={admin.email} />}>{children}</AdminShell>;
 }
@@ -37,18 +30,5 @@ function PanelSkeleton() {
         <div className="h-24 rounded-soft bg-peach/30" />
       </div>
     </AdminShell>
-  );
-}
-
-function BackendUnavailable() {
-  return (
-    <main className="flex flex-1 items-center justify-center px-4 py-20">
-      <div className="flex max-w-sm flex-col items-center gap-4 text-center">
-        <h1 className="text-xs font-normal tracking-label uppercase">
-          No pudimos conectar con el servidor
-        </h1>
-        <p className="text-sm text-charcoal/70">Revisá tu conexión y recargá la página.</p>
-      </div>
-    </main>
   );
 }

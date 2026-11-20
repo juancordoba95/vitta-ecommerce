@@ -4,7 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { AdminUnauthorizedError } from "@/lib/admin/admin-fetch";
 import { SESSION_EXPIRED_PATH } from "@/lib/admin/auth";
 import { getAdminProduct, getAdminCategories } from "@/lib/admin/admin-api";
-import { ApiError } from "@/lib/api/client";
+import { ApiError } from "@/lib/api/errors";
 import { ProductForm } from "@/components/admin/product-form";
 import { VariantManager } from "@/components/admin/variant-manager";
 import { ImageManager } from "@/components/admin/image-manager";

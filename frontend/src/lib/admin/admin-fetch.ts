@@ -1,7 +1,7 @@
 import "server-only";
-import { ApiError } from "@/lib/api/client";
+import { ApiError } from "@/lib/api/errors";
 import type { ProblemDetail } from "@/lib/api/types";
-import { BACKEND_TIMEOUT_MS, backendUrl } from "./backend";
+import { BACKEND_TIMEOUT_MS, backendUrl } from "@/lib/api/backend";
 import { getAdminToken } from "./session";
 
 /** No session cookie, or the backend rejected the token (401/403): log in again. */
