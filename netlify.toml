@@ -1,9 +1,15 @@
-# Monorepo: the site lives in /frontend. Netlify detects Next.js and installs its
-# runtime/adapter automatically, so no plugin is declared here.
+# Monorepo: the site lives in /frontend. The Next.js adapter is declared
+# explicitly: autodetection did not run on this site and Netlify published
+# .next as static files (404 everywhere).
 [build]
   base = "frontend"
   command = "npm run build"
+  # Relative to `base`.
+  publish = ".next"
 
 [build.environment]
   # Same major version as CI (.github/workflows/ci.yml).
   NODE_VERSION = "22"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
