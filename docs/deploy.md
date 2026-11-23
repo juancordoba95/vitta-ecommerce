@@ -95,7 +95,7 @@ CI builds the image on every backend change (`docker build`, no push) to validat
 
 # Deploy — frontend (Netlify)
 
-The frontend (Next.js 16, App Router) runs on **Netlify** (Free plan). Netlify detects Next.js and installs its adapter/runtime automatically, so `netlify.toml` declares no plugin. Do not pin the adapter version.
+The frontend (Next.js 16, App Router) runs on **Netlify** (Free plan). The Next.js adapter is declared **explicitly** in `netlify.toml` (`[[plugins]] package = "@netlify/plugin-nextjs"`); do not rely on Netlify's autodetection. Without it Netlify published `frontend/.next` as static files and every route returned 404 (the build log showed "0 new function(s) to upload"). A healthy deploy lists the Next.js runtime/functions in the log. The version is not pinned.
 
 ## Netlify settings
 
@@ -105,7 +105,7 @@ The repo-root `netlify.toml` already carries them; create the site from this Git
 | --- | --- |
 | Base directory | `frontend` |
 | Build command | `npm run build` |
-| Publish directory | empty (handled by the Next.js adapter) |
+| Publish directory | `.next` (relative to the base directory; the adapter serves it) |
 | Node | `22` (`NODE_VERSION` in `netlify.toml`, same as CI) |
 
 ### Environment variables
