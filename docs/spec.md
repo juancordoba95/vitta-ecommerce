@@ -19,7 +19,7 @@ An online store for **Vitta**, a lingerie and accessories brand that currently s
 - **Admin panel** with JWT login:
   - Create, edit and delete products.
   - Manage categories, images, prices and stock.
-- **Deploy**: frontend on Netlify; backend on Render (Docker), MySQL on Aiven, images on Cloudinary.
+- **Deploy**: frontend on Netlify; backend on Render (Docker), MySQL on TiDB Cloud Starter, images on Cloudinary.
 
 ## Out of v1
 
@@ -40,7 +40,7 @@ Monorepo:
 - **`/frontend`**: Next.js 16.4.6 (App Router, `src/`, alias `@/*`), React 19, TypeScript, Tailwind CSS 4, ESLint 9, npm, Node 22.
 
 ```
-Customer / Admin ──> Next.js (Netlify) ──REST──> Spring Boot API (Render) ──> MySQL 8 (Aiven)
+Customer / Admin ──> Next.js (Netlify) ──REST──> Spring Boot API (Render) ──> MySQL-compatible (TiDB Cloud)
 Customer checkout ──> WhatsApp link with the pre-filled order (built on the frontend)
 ```
 
@@ -52,7 +52,7 @@ Customer checkout ──> WhatsApp link with the pre-filled order (built on the 
 - **CI with a single aggregate check**: one GitHub Actions workflow with path filters (backend/frontend). The `ci` job aggregates results (skipped jobs count as OK) and is the only required status check.
 - **Ruleset on `main`**: no direct pushes; changes land through PRs that must pass `ci`, reviewed and merged by the owner.
 - **Public repo, no credentials**: secrets live in gitignored `.env` files; only `.env.example` templates are committed.
-- **Production backend**: Docker image (`backend/Dockerfile`, multi-stage, JRE, non-root) on Render Free, Aiven MySQL over TLS, Cloudinary for images. The `prod` profile (`application-prod.yaml`) takes everything from env vars, runs only schema migrations (never the dev seed), caps the pool at 5 connections, requires `CLOUDINARY_URL` and `FRONTEND_URL`, and refuses to start together with `dev`. Health check: `GET /actuator/health`. Runbook and variables in `docs/deploy.md`.
+- **Production backend**: Docker image (`backend/Dockerfile`, multi-stage, JRE, non-root) on Render Free, TiDB Cloud Starter (MySQL-compatible) over TLS, Cloudinary for images. The `prod` profile (`application-prod.yaml`) takes everything from env vars, runs only schema migrations (never the dev seed), caps the pool at 5 connections, requires `CLOUDINARY_URL` and `FRONTEND_URL`, and refuses to start together with `dev`. Health check: `GET /actuator/health`. Runbook and variables in `docs/deploy.md`.
 
 ## Domain model
 
@@ -371,8 +371,8 @@ Code: `frontend/src/lib/checkout/` (pure logic: message and URL in `whatsapp.ts`
 | --- | --- |
 | `NEXT_PUBLIC_WHATSAPP_NUMBER` | Store number that receives the orders, in international format with digits only: `54` + `9` + area code without the leading `0` + number without `15` (e.g. Buenos Aires `11 1234-5678` → `5491112345678`). Spaces, dashes, parentheses and a leading `+` are tolerated and stripped. |
 
-- It is a `NEXT_PUBLIC_` variable, so it is inlined into the client bundle **at build time**: changing it requires a new build (on Vercel, a redeploy).
-- The number only lives in environment variables (`frontend/.env.local` locally, the Vercel project settings in production); `.env.example` has an empty placeholder. It is never hardcoded.
+- It is a `NEXT_PUBLIC_` variable, so it is inlined into the client bundle **at build time**: changing it requires a new build (on Netlify, a new deploy).
+- The number only lives in environment variables (`frontend/.env.local` locally, the Netlify site environment variables in production); `.env.example` has an empty placeholder. It is never hardcoded.
 - If it is missing or malformed (not 10–15 digits), the page still works and "Confirmar pedido" shows "No podemos enviar pedidos por WhatsApp en este momento: falta configurar el número de la tienda…" instead of opening WhatsApp (and logs an error in the console).
 
 #### Flow
@@ -502,9 +502,11 @@ All admin mutations use **Server Actions** (`"use server"`) that call `adminFetc
 
 ## Changelog
 
+- **2026-11-26**: Production deploy documented (`docs/deploy.md`): database moved from Aiven (free MySQL plan retired) to TiDB Cloud Starter (AWS us-east-1, `utf8mb4_0900_ai_ci`, port 4000, `sslMode=VERIFY_IDENTITY`; CHECK constraints are ignored, validation stays in the backend), Render `vitta-backend` deployed manually from the public repo URL with an external health-check ping, Netlify `vittabymarie` with `@netlify/plugin-nextjs` declared explicitly and public visibility, Cloudinary URL format and key rotation, troubleshooting section. Stack references updated (Vercel → Netlify, Aiven → TiDB Cloud).
+
 - **2026-11-20**: Mission 5.2: frontend ready for Netlify Free — `netlify.toml` (base `frontend`, Node 22, no plugin), `NEXT_PUBLIC_API_URL` replaced by server-only `BACKEND_URL` (clear error if missing) with a same-origin `/api/cart/validate` proxy, Cloudinary-only image patterns in production, session cookie cleared with the same attributes it is set with, 8 s backend timeout and a "La tienda está despertando" retry screen (`error.tsx`) for Render cold starts.
 
-- **2026-11-19**: Mission 5.1: production-ready backend — multi-stage `Dockerfile` + `.dockerignore`, `server.port=${PORT:8080}`, `prod` profile (env-only datasource with Aiven TLS, pool of 5, schema-only Flyway, `forward-headers-strategy=native`, required `CLOUDINARY_URL`/`FRONTEND_URL`, no error details in responses), guard against `prod`+`dev`, login rate limit keyed by email and IP, CI builds the Docker image, `docs/deploy.md` runbook.
+- **2026-11-19**: Mission 5.1: production-ready backend — multi-stage `Dockerfile` + `.dockerignore`, `server.port=${PORT:8080}`, `prod` profile (env-only datasource with TLS, pool of 5, schema-only Flyway, `forward-headers-strategy=native`, required `CLOUDINARY_URL`/`FRONTEND_URL`, no error details in responses), guard against `prod`+`dev`, login rate limit keyed by email and IP, CI builds the Docker image, `docs/deploy.md` runbook.
 
 - **2026-11-13**: Mission 4.4: admin panel screens — `/admin/productos` list with search/filter/pagination, `/admin/productos/nuevo` create form, `/admin/productos/[id]` edit page (data, variants, images, publish toggle), `/admin/categorias` list+create+edit. Client-side canvas image resize before upload; images proxied through a Next.js route handler. Errors in Spanish; catalog cache invalidated via `updateTag` after every mutation.
 
